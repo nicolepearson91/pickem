@@ -12,9 +12,16 @@ const oswald = Oswald({ subsets: ["latin"], weight: ["500", "700"], variable: "-
 export const metadata: Metadata = {
   title: "Pick Em",
   description: "Weekly NFL and college football pick ems with live standings.",
+  applicationName: "Pick Em",
+  appleWebApp: { capable: true, title: "Pick Em", statusBarStyle: "black-translucent" },
+  icons: {
+    icon: [{ url: "/favicon-32.png", sizes: "32x32" }, { url: "/icon.svg", type: "image/svg+xml" }],
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180" }],
+  },
+  formatDetection: { telephone: false },
 };
 
-export const viewport: Viewport = { themeColor: "#0b1020" };
+export const viewport: Viewport = { themeColor: "#0b1020", viewportFit: "cover" };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const { profile } = await getViewer();
@@ -22,7 +29,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html lang="en" className={`dark ${inter.variable} ${oswald.variable}`}>
       <body className="min-h-screen font-sans antialiased">
-        <header className="sticky top-0 z-30 border-b border-slate-800 bg-slate-950/90 backdrop-blur">
+        <header className="sticky top-0 z-30 border-b border-slate-800 bg-slate-950/90 pt-[env(safe-area-inset-top)] backdrop-blur">
           <nav className="mx-auto flex max-w-6xl items-center gap-4 px-4 py-3">
             <Link href="/" className="font-display text-2xl font-bold uppercase tracking-wide text-white">
               🏈 Pick Em
@@ -49,7 +56,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             </div>
           )}
         </header>
-        <main className="mx-auto max-w-6xl px-4 py-6">{children}</main>
+        <main className="mx-auto max-w-6xl px-4 pt-6 pb-[max(1.5rem,env(safe-area-inset-bottom))]">{children}</main>
       </body>
     </html>
   );
