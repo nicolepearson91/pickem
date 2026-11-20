@@ -121,3 +121,22 @@ export async function removePayment(contestId: number, userId: string) {
   await supabase.from("payments").delete().eq("contest_id", contestId).eq("user_id", userId);
   revalidatePath(`/admin/contests/${contestId}`);
 }
+
+/**
+ * Makes a one-time password reset link for a player, for the admin to text them.
+ * Works even when Supabase's free email sending is used up.
+ */
+export async function makeResetLink(userId: string): Promise<{ link?: string; error?: string }> {
+  await requireAdmin();
+  const { createAdminClient } = await import("@/lib/supabase/admin");
+  const { headers } = await import("next/headers");
+  const admin = createAdminClient();
+  const { data: u, error: uErr } = await admin.auth.admin.getUserById(userId);
+  if (uErr || !u.user?.email) return { error: "Couldn't find that player's email." };
+  const { data, error } = await admin.auth.admin.generateLink({ type: "recovery", email: u.user.email });
+  if (error || !data.properties?.hashed_token) return { error: error?.message ?? "Couldn't make a link." };
+  const h = await headers();
+  const origin = `${h.get("x-forwarded-proto") ?? "https"}://${h.get("host")}`;
+  const q = new URLSearchParams({ token_hash: data.properties.hashed_token, type: "recovery", next: "/reset-password" });
+  return { link: `${origin}/auth/confirm?${q}` };
+}

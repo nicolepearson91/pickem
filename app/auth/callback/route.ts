@@ -1,15 +1,14 @@
-import { NextResponse, type NextRequest } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import type { NextRequest } from "next/server";
+import { createRouteClient, safeNext } from "@/lib/supabase/route";
 
-// Google sign-in and email confirmation links land here.
+// Google sign-in, email sign-in links, password reset emails and confirmation links land here.
 export async function GET(request: NextRequest) {
-  const url = request.nextUrl;
-  const code = url.searchParams.get("code");
-  const next = url.searchParams.get("next") || "/";
+  const q = request.nextUrl.searchParams;
+  const code = q.get("code");
+  const { supabase, redirect } = createRouteClient(request);
   if (code) {
-    const supabase = await createClient();
-    await supabase.auth.exchangeCodeForSession(code);
+    const { error } = await supabase.auth.exchangeCodeForSession(code);
+    if (error) return redirect("/login?error=link");
   }
-  const safeNext = next.startsWith("/") && !next.startsWith("//") ? next : "/";
-  return NextResponse.redirect(new URL(safeNext, url.origin));
+  return redirect(safeNext(q.get("next")));
 }

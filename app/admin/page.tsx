@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { requireAdmin } from "@/lib/auth";
 import { newInviteCode, saveSettings, setMember } from "./actions";
 import CopyButton from "@/components/CopyButton";
+import ResetLinkButton from "@/components/ResetLinkButton";
 import type { AppSettings, Contest, Profile } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -87,9 +88,12 @@ export default async function AdminPage() {
                 {!p.is_member && !p.is_admin && <span className="ml-2 text-xs text-amber-600">not in the pool</span>}
               </span>
               {p.id !== user.id && (
-                <form action={setMember.bind(null, p.id, !p.is_member)}>
-                  <button className={p.is_member ? "btn-danger" : "btn-ghost"}>{p.is_member ? "Remove" : "Let in"}</button>
-                </form>
+                <span className="flex flex-wrap items-center justify-end gap-2">
+                  <ResetLinkButton userId={p.id} name={p.display_name} />
+                  <form action={setMember.bind(null, p.id, !p.is_member)}>
+                    <button className={p.is_member ? "btn-danger" : "btn-ghost"}>{p.is_member ? "Remove" : "Let in"}</button>
+                  </form>
+                </span>
               )}
             </li>
           ))}

@@ -10,6 +10,12 @@ Weekly NFL and college football pick ems for a group of friends.
 
 Built with Next.js, Supabase (logins, database, live updates) and ESPN's public scoreboard feed.
 
+## Forgotten passwords
+
+Players can use **Forgot password?** or **Email me a sign-in link** on the sign-in page. Supabase's built-in email sender is only meant for testing: it sends a handful of emails an hour and may only deliver to your own team's addresses. For reliable emails, add your own sender under **Authentication > Emails > SMTP Settings** (a Gmail account with an app password works).
+
+Either way, the admin can always go to **Admin > Players > Password reset link** and text that link to the player. It works once, on any device, within an hour.
+
 ## Rules
 
 - 1 point per correct pick. Tied games count for nobody.
@@ -23,7 +29,8 @@ Built with Next.js, Supabase (logins, database, live updates) and ESPN's public 
 1. Create a project at [supabase.com](https://supabase.com).
 2. Open **SQL Editor**, paste the whole of `supabase/migrations/20261120000000_init.sql`, and run it.
 3. Under **Authentication > Sign In / Providers > Email**, turn off **Confirm email**. Supabase's free email sender only sends a few emails an hour, so confirmation emails would block friends from signing up. (Optional: turn on **Google** there too.)
-4. Under **Project Settings > API Keys**, copy the project URL, the publishable (anon) key and the secret (service role) key for step 2.
+4. Under **Authentication > URL Configuration**, set **Site URL** to your site's address and add `https://YOUR-SITE.vercel.app/**` under **Redirect URLs**. Password reset and sign-in emails only work with this.
+5. Under **Project Settings > API Keys**, copy the project URL, the publishable (anon) key and the secret (service role) key for step 2.
 
 > **The first account to sign up becomes the admin.** Sign up yourself before you share the link.
 
