@@ -1,12 +1,59 @@
 @import "tailwindcss";
 
-:root { color-scheme: light dark; }
-body { @apply bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100; }
+/* Game Day Dark: the app is always dark, so every dark: style applies everywhere. */
+@custom-variant dark (&:where(.dark, .dark *));
 
-@utility card { @apply rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900; }
-@utility btn { @apply inline-flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed; }
-@utility btn-primary { @apply btn bg-emerald-600 text-white hover:bg-emerald-700; }
-@utility btn-ghost { @apply btn border border-slate-300 hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800; }
-@utility btn-danger { @apply btn border border-red-300 text-red-700 hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-950; }
-@utility input { @apply w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900; }
-@utility label { @apply mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400; }
+@theme {
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-oswald), "Arial Narrow", sans-serif;
+
+  /* Navy night-game neutrals */
+  --color-slate-50: #f4f6fb;
+  --color-slate-100: #e6eaf3;
+  --color-slate-200: #c9d1e2;
+  --color-slate-300: #a9b4cb;
+  --color-slate-400: #8b97b0;
+  --color-slate-500: #7a87a3;
+  --color-slate-600: #4a577a;
+  --color-slate-700: #2a3658;
+  --color-slate-800: #1e2742;
+  --color-slate-900: #121a30;
+  --color-slate-950: #0b1020;
+
+  /* Neon field green */
+  --color-emerald-50: #0f2a20;
+  --color-emerald-100: #123b2a;
+  --color-emerald-200: #8dffc0;
+  --color-emerald-300: #6dffab;
+  --color-emerald-400: #39ff88;
+  --color-emerald-500: #2bea78;
+  --color-emerald-600: #1fd36a;
+  --color-emerald-700: #39ff88;
+  --color-emerald-800: #39ff88;
+  --color-emerald-900: #8dffc0;
+  --color-emerald-950: #0f2a20;
+
+  /* Live / wrong */
+  --color-red-50: #2a0f18;
+  --color-red-100: #3a1220;
+  --color-red-300: #ff9db0;
+  --color-red-400: #ff6b85;
+  --color-red-600: #ff4d6d;
+  --color-red-700: #ff6b85;
+  --color-red-800: #7a1f33;
+  --color-red-950: #2a0f18;
+}
+
+:root { color-scheme: dark; }
+body { @apply bg-slate-950 text-slate-100; }
+
+@utility font-display { font-family: var(--font-display); letter-spacing: 0.01em; }
+@utility card { @apply rounded-2xl border border-slate-800 bg-slate-900 p-4; }
+@utility btn { @apply inline-flex items-center justify-center gap-2 rounded-xl px-3.5 py-2 text-sm font-bold transition disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed; }
+@utility btn-primary { @apply btn bg-emerald-400 text-slate-950 hover:bg-emerald-300 shadow-[0_0_20px_-6px_var(--color-emerald-400)]; }
+@utility btn-ghost { @apply btn border border-slate-700 bg-slate-900 text-slate-100 hover:border-slate-600 hover:bg-slate-800; }
+@utility btn-danger { @apply btn border border-red-800 text-red-400 hover:bg-red-950; }
+@utility input { @apply w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-slate-100 placeholder:text-slate-500 focus:border-emerald-400 focus:outline-none; }
+@utility label { @apply mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-400; }
+
+h1 { @apply font-display; }

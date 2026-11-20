@@ -12,6 +12,8 @@ test("parses games in kickoff order with scores, ranks and winners", () => {
   assert.equal(final.winner, "home");
   assert.equal(final.home.score, 24);
   assert.equal(final.home.abbr, "KC");
+  assert.equal(final.home.color, "#e31837");
+  assert.equal(final.away.color, null);
   const live = g[2];
   assert.equal(live.state, "in");
   assert.equal(live.winner, null);

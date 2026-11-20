@@ -33,10 +33,12 @@ export interface Game {
   home_abbr: string;
   home_logo: string | null;
   home_rank: number | null;
+  home_color?: string | null;
   away_name: string;
   away_abbr: string;
   away_logo: string | null;
   away_rank: number | null;
+  away_color?: string | null;
   home_score: number | null;
   away_score: number | null;
   state: GameState;

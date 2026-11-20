@@ -78,18 +78,20 @@ export default function ContestView(p: Props) {
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
-            {contest.league === "nfl" ? "NFL" : "College football"} · {contest.season} · Week {contest.week}
-            {contest.status === "closed" && " · Closed"}
-          </p>
-          <h1 className="text-3xl font-black">{contest.name}</h1>
-        </div>
-        <div className="flex items-center gap-3 text-sm">
-          {live && <span className="animate-pulse rounded bg-red-600 px-2 py-0.5 text-xs font-bold text-white">LIVE</span>}
+      <div className="rounded-3xl border border-slate-800 bg-[radial-gradient(120%_120%_at_0%_0%,#163a80_0%,#0f1730_55%,#0b1020_100%)] p-5">
+        <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">
+          {contest.league === "nfl" ? "NFL" : "College football"} · Week {contest.week}
+          {contest.status === "closed" && " · Closed"}
+        </p>
+        <h1 className="mt-1 text-4xl font-bold leading-none text-white sm:text-5xl">{contest.name}</h1>
+        <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
+          {live && (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-red-600 px-3 py-1 text-xs font-bold text-white">
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" /> LIVE
+            </span>
+          )}
           {myRow && started && (
-            <span className="rounded-lg bg-emerald-100 px-3 py-1 font-semibold text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200">
+            <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-400">
               You&apos;re {ordinal(myRow.place)} · {myRow.correct}–{myRow.wrong}
             </span>
           )}
@@ -101,13 +103,15 @@ export default function ContestView(p: Props) {
           payment={p.payments.find((x) => x.user_id === userId)} adminName={p.people.find((x) => x.is_admin)?.display_name} />
       )}
 
-      <div className="flex gap-1 rounded-lg bg-slate-200 p-1 text-sm font-semibold dark:bg-slate-800 sm:w-fit">
+      <div>
+      <div className="flex gap-1 rounded-xl border border-slate-800 bg-slate-900 p-1 text-sm font-bold sm:w-fit">
         {(["picks", "board"] as const).map((t) => (
           <button key={t} onClick={() => setTab(t)}
-            className={`flex-1 rounded-md px-4 py-1.5 sm:flex-none ${tab === t ? "bg-white shadow dark:bg-slate-950" : "text-slate-600 dark:text-slate-400"}`}>
-            {t === "picks" ? `My picks (${pickedCount}/${games.length})` : "Dashboard"}
+            className={`flex-1 rounded-lg px-5 py-2 sm:flex-none ${tab === t ? "bg-slate-700 text-white" : "text-slate-400"}`}>
+            {t === "picks" ? `My picks ${pickedCount}/${games.length}` : "Dashboard"}
           </button>
         ))}
+      </div>
       </div>
 
       {error && <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">{error}</p>}
@@ -134,21 +138,26 @@ export default function ContestView(p: Props) {
   );
 }
 
-function TeamLine({ name, abbr, logo, rank, score, showScore, win }: {
-  name: string; abbr: string; logo: string | null; rank: number | null; score: number | null; showScore: boolean; win: boolean;
+function TeamLine({ name, abbr, logo, rank, score, color, showScore, win }: {
+  name: string; abbr: string; logo: string | null; rank: number | null; score: number | null;
+  color: string | null; showScore: boolean; win: boolean;
 }) {
   return (
-    <span className="flex w-full items-center gap-2">
+    <span className="flex w-full items-center gap-3">
       {logo ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={logo} alt="" className="h-7 w-7 shrink-0 object-contain" />
-      ) : <span className="h-7 w-7 shrink-0 rounded-full bg-slate-300 dark:bg-slate-700" />}
-      <span className="min-w-0 flex-1 truncate text-left">
-        {rank && <span className="mr-1 text-xs text-slate-500">{rank}</span>}
-        <span className="font-semibold sm:hidden">{abbr}</span>
-        <span className="hidden font-semibold sm:inline">{name}</span>
+        <img src={logo} alt="" className="h-8 w-8 shrink-0 object-contain" />
+      ) : (
+        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-[10px] font-extrabold text-white"
+          style={{ background: color ?? "#2a3658" }}>{abbr}</span>
+      )}
+      <span className="min-w-0 flex-1 truncate text-left text-[15px] font-bold text-white">
+        {rank && <span className="mr-1.5 text-xs font-semibold text-slate-400">#{rank}</span>}
+        {name}
       </span>
-      {showScore && <span className={`tabular-nums text-lg ${win ? "font-black" : "font-medium text-slate-500"}`}>{score ?? 0}</span>}
+      {showScore && (
+        <span className={`font-display text-2xl font-bold tabular-nums ${win ? "text-white" : "text-slate-500"}`}>{score ?? 0}</span>
+      )}
     </span>
   );
 }
@@ -163,35 +172,35 @@ function GameCard({ g, locked, pick, onPick, isTiebreaker }: {
     const right = final && selected && g.winner === side;
     const wrong = final && selected && g.winner !== side;
     const t = side === "home"
-      ? { name: g.home_name, abbr: g.home_abbr, logo: g.home_logo, rank: g.home_rank, score: g.home_score }
-      : { name: g.away_name, abbr: g.away_abbr, logo: g.away_logo, rank: g.away_rank, score: g.away_score };
-    const color = right ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-950"
-      : wrong ? "border-red-500 bg-red-50 dark:bg-red-950"
-      : selected ? "border-emerald-600 bg-emerald-50 ring-2 ring-emerald-600 dark:bg-emerald-950"
-      : "border-slate-200 dark:border-slate-700";
+      ? { name: g.home_name, abbr: g.home_abbr, logo: g.home_logo, rank: g.home_rank, score: g.home_score, color: g.home_color ?? null }
+      : { name: g.away_name, abbr: g.away_abbr, logo: g.away_logo, rank: g.away_rank, score: g.away_score, color: g.away_color ?? null };
+    const state = right ? "border-emerald-400 bg-emerald-50"
+      : wrong ? "border-red-600 bg-red-50"
+      : selected ? "border-emerald-400 bg-emerald-50 shadow-[0_0_18px_-8px_var(--color-emerald-400)]"
+      : "border-slate-700/70 bg-slate-950/60";
     return (
       <button type="button" disabled={locked} onClick={() => onPick(side)} aria-pressed={selected}
-        className={`flex w-full items-center rounded-lg border-2 px-3 py-2 transition enabled:hover:border-emerald-400 disabled:cursor-default ${color}`}>
-        <TeamLine {...t} showScore={showScore} win={g.winner === side} />
-        {selected && <span className="ml-2 text-emerald-600">{wrong ? "✗" : "✓"}</span>}
+        className={`relative flex w-full items-center overflow-hidden rounded-xl border-2 py-2.5 pl-4 pr-3 transition enabled:hover:border-emerald-400/70 enabled:active:scale-[0.99] disabled:cursor-default ${state}`}>
+        <span className="absolute inset-y-0 left-0 w-1.5" style={{ background: t.color ?? "transparent" }} />
+        <TeamLine {...t} showScore={showScore} win={g.winner === side || (g.state === "in" && leading(g) === side)} />
+        {selected && <span className={`ml-2 text-lg font-black ${wrong ? "text-red-600" : "text-emerald-400"}`}>{wrong ? "✗" : "✓"}</span>}
       </button>
     );
   };
   return (
-    <div className="card space-y-2">
-      <div className="flex items-center justify-between text-xs text-slate-500">
+    <div className="card space-y-2 p-3">
+      <div className="flex items-center justify-between px-1 text-xs font-semibold uppercase tracking-wide text-slate-400">
         <span>
           {g.state === "in" ? <span className="font-bold text-red-600">● {g.status_detail}</span>
-            : g.state === "post" ? <span className="font-semibold">{g.status_detail || "Final"}</span>
+            : g.state === "post" ? <span>{g.status_detail || "Final"}</span>
             : <LocalTime iso={g.kickoff} />}
         </span>
-        <span className="flex gap-2">
-          {isTiebreaker && <span className="rounded bg-amber-100 px-1.5 font-semibold text-amber-800 dark:bg-amber-950 dark:text-amber-300">Tiebreaker</span>}
-          {locked ? <span>🔒 Locked</span> : !pick ? <span className="font-semibold text-amber-600">Needs a pick</span> : null}
+        <span className="flex items-center gap-2 normal-case tracking-normal">
+          {isTiebreaker && <span className="rounded-full bg-amber-400/15 px-2 py-0.5 font-bold text-amber-300">Tiebreaker</span>}
+          {locked ? <span>🔒</span> : !pick ? <span className="font-bold text-emerald-400">Pick by kickoff</span> : null}
         </span>
       </div>
       {btn("away")}
-      <div className="text-center text-[10px] font-bold uppercase text-slate-400">at</div>
       {btn("home")}
     </div>
   );
@@ -239,64 +248,48 @@ function Board({ games, picks, standings, userId, contest, payments, tiebreakers
 
   return (
     <div className="space-y-5">
-      <div className="card overflow-x-auto p-0">
-        <table className="w-full text-sm">
-          <thead className="bg-slate-100 text-left text-xs uppercase tracking-wide text-slate-500 dark:bg-slate-800">
-            <tr>
-              <th className="px-3 py-2">Place</th>
-              <th className="px-3 py-2">Player</th>
-              <th className="px-3 py-2 text-right">Right</th>
-              <th className="px-3 py-2 text-right">Wrong</th>
-              <th className="px-3 py-2 text-right">Max possible</th>
-              {tbGame && tbShown && <th className="px-3 py-2 text-right">Tiebreaker</th>}
-              {hasFee && <th className="px-3 py-2">Paid</th>}
-            </tr>
-          </thead>
-          <tbody>
-            {standings.length === 0 && (
-              <tr><td colSpan={7} className="px-3 py-6 text-center text-slate-500">No picks yet.</td></tr>
-            )}
-            {standings.map((r) => {
-              const pay = payBy.get(r.user_id);
-              return (
-                <tr key={r.user_id} className={`border-t border-slate-100 dark:border-slate-800 ${r.user_id === userId ? "bg-emerald-50/60 dark:bg-emerald-950/40" : ""}`}>
-                  <td className="px-3 py-2 font-black">{r.place === 1 ? "🏆 1st" : ordinal(r.place)}</td>
-                  <td className="px-3 py-2 font-semibold">{r.display_name}</td>
-                  <td className="px-3 py-2 text-right tabular-nums font-bold text-emerald-700 dark:text-emerald-400">{r.correct}</td>
-                  <td className="px-3 py-2 text-right tabular-nums text-red-600">{r.wrong}</td>
-                  <td className="px-3 py-2 text-right tabular-nums text-slate-500">
-                    {/* Other players' unstarted picks are hidden, so their ceiling isn't known yet. */}
-                    {r.user_id === userId || !anyOpen ? r.possible : "–"}
-                  </td>
-                  {tbGame && tbShown && (
-                    <td className="px-3 py-2 text-right tabular-nums">
-                      {r.tiebreak ?? "–"}{r.tiebreakDiff !== null && <span className="text-xs text-slate-500"> (off {r.tiebreakDiff})</span>}
-                    </td>
-                  )}
+      <div className="space-y-2">
+        <h2 className="font-display text-2xl font-bold uppercase text-white">Standings</h2>
+        {standings.length === 0 && <p className="card text-center text-slate-400">No picks yet.</p>}
+        {standings.map((r) => {
+          const pay = payBy.get(r.user_id);
+          const me = r.user_id === userId;
+          return (
+            <div key={r.user_id}
+              className={`flex items-center gap-3 rounded-2xl border bg-slate-900 px-4 py-3 ${me ? "border-emerald-400 shadow-[0_0_20px_-10px_var(--color-emerald-400)]" : "border-slate-800"}`}>
+              <span className={`w-9 font-display text-2xl font-bold ${r.place === 1 ? "text-amber-300" : "text-emerald-400"}`}>
+                {r.place === 1 ? "🏆" : r.place}
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate font-bold text-white">{r.display_name}</span>
+                <span className="block text-xs text-slate-400">
+                  Max {r.user_id === userId || !anyOpen ? r.possible : "?"}
+                  {tbGame && tbShown && <> · Tiebreak {r.tiebreak ?? "–"}{r.tiebreakDiff !== null && ` (off ${r.tiebreakDiff})`}</>}
                   {hasFee && (
-                    <td className="px-3 py-2">
-                      {pay?.status === "verified" ? <span className="text-emerald-600">✓</span>
-                        : pay ? <span className="text-xs text-amber-600">{METHOD_LABEL[pay.method]} pending</span>
-                        : <span className="text-xs text-red-600">Unpaid</span>}
-                    </td>
+                    <> · {pay?.status === "verified" ? <span className="text-emerald-400">Paid</span>
+                      : pay ? <span className="text-amber-300">{METHOD_LABEL[pay.method]} pending</span>
+                      : <span className="text-red-400">Unpaid</span>}</>
                   )}
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+                </span>
+              </span>
+              <span className="font-display text-2xl font-bold tabular-nums text-white">
+                {r.correct}<span className="text-slate-500">–</span>{r.wrong}
+              </span>
+            </div>
+          );
+        })}
       </div>
 
       <div className="card overflow-x-auto p-0">
         <table className="text-xs">
           <thead>
-            <tr className="bg-slate-100 dark:bg-slate-800">
-              <th className="sticky left-0 z-10 bg-slate-100 px-3 py-2 text-left uppercase tracking-wide text-slate-500 dark:bg-slate-800">Everyone&apos;s picks</th>
+            <tr className="bg-slate-800">
+              <th className="sticky left-0 z-10 bg-slate-800 px-3 py-2 text-left uppercase tracking-wide text-slate-400">Everyone&apos;s picks</th>
               {games.map((g) => (
                 <th key={g.id} className="min-w-16 px-2 py-2 text-center font-semibold">
                   <div>{g.away_abbr}</div>
                   <div className="text-slate-400">@{g.home_abbr}</div>
-                  <div className={`mt-0.5 font-normal ${g.state === "in" ? "text-red-600" : "text-slate-500"}`}>
+                  <div className={`mt-0.5 font-display text-sm ${g.state === "in" ? "text-red-600" : "text-slate-400"}`}>
                     {g.state === "pre" ? <LocalTime iso={g.kickoff} withDate={false} /> : `${g.away_score ?? 0}-${g.home_score ?? 0}`}
                   </div>
                 </th>
@@ -305,20 +298,20 @@ function Board({ games, picks, standings, userId, contest, payments, tiebreakers
           </thead>
           <tbody>
             {standings.map((r) => (
-              <tr key={r.user_id} className="border-t border-slate-100 dark:border-slate-800">
-                <td className="sticky left-0 z-10 whitespace-nowrap bg-white px-3 py-1.5 font-semibold dark:bg-slate-900">
+              <tr key={r.user_id} className={`border-t border-slate-800 ${r.user_id === userId ? "bg-emerald-950/60" : ""}`}>
+                <td className="sticky left-0 z-10 whitespace-nowrap bg-slate-900 px-3 py-2 font-bold text-white">
                   {r.display_name}
                 </td>
                 {games.map((g) => {
                   const side = pickMap.get(`${r.user_id}:${g.id}`);
                   const hidden = !side && r.user_id !== userId && isLocked(g, contest) === false;
                   const abbr = side === "home" ? g.home_abbr : side === "away" ? g.away_abbr : null;
-                  const cls = !side ? "text-slate-300 dark:text-slate-600"
-                    : g.state === "post" && g.winner ? (g.winner === side ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200" : "bg-red-100 text-red-700 line-through dark:bg-red-950 dark:text-red-300")
-                    : g.state === "in" ? (leading(g) === side ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300" : leading(g) ? "bg-red-50 text-red-600 dark:bg-red-950/40 dark:text-red-300" : "")
-                    : "";
+                  const cls = !side ? "text-slate-600"
+                    : g.state === "post" && g.winner ? (g.winner === side ? "bg-emerald-950 text-emerald-400" : "bg-red-950 text-red-400 line-through")
+                    : g.state === "in" ? (leading(g) === side ? "text-emerald-400" : leading(g) ? "text-red-400" : "text-slate-200")
+                    : "text-slate-200";
                   return (
-                    <td key={g.id} className={`px-2 py-1.5 text-center font-semibold ${cls}`}>
+                    <td key={g.id} className={`px-2 py-2 text-center font-bold ${cls}`}>
                       {abbr ?? (hidden ? "🔒" : "–")}
                     </td>
                   );
@@ -327,7 +320,7 @@ function Board({ games, picks, standings, userId, contest, payments, tiebreakers
             ))}
           </tbody>
         </table>
-        <p className="border-t border-slate-100 px-3 py-2 text-xs text-slate-500 dark:border-slate-800">
+        <p className="border-t border-slate-800 px-3 py-2 text-xs text-slate-400">
           Other players&apos; picks show up when each game kicks off. 🔒 means hidden until then.
         </p>
       </div>

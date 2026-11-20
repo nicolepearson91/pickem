@@ -6,7 +6,7 @@ export const scoreboard = {
       competitions: [{
         status: { type: { state: "post", completed: true, shortDetail: "Final" } },
         competitors: [
-          { homeAway: "home", score: "24", winner: true, team: { displayName: "Kansas City Chiefs", abbreviation: "KC", logo: "https://a.espncdn.com/kc.png" } },
+          { homeAway: "home", score: "24", winner: true, team: { displayName: "Kansas City Chiefs", abbreviation: "KC", logo: "https://a.espncdn.com/kc.png", color: "e31837" } },
           { homeAway: "away", score: "17", winner: false, team: { displayName: "Buffalo Bills", abbreviation: "BUF", logo: null } },
         ],
       }],

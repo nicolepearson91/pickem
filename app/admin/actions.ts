@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireAdmin } from "@/lib/auth";
-import { fetchScoreboard, gameColumns } from "@/lib/espn";
+import { colorColumns, fetchScoreboard, gameColumns } from "@/lib/espn";
 import type { League } from "@/lib/types";
 
 export async function saveSettings(formData: FormData) {
@@ -70,9 +70,12 @@ export async function createContest(input: NewContestInput): Promise<{ error?: s
   }).select("id").single();
   if (error || !contest) return { error: error?.message ?? "Couldn't create it." };
 
-  const { data: rows, error: gErr } = await supabase.from("games")
-    .insert(chosen.map((g) => ({ contest_id: contest.id, ...gameColumns(g) })))
+  const insertGames = (withColors: boolean) => supabase.from("games")
+    .insert(chosen.map((g) => ({ contest_id: contest.id, ...gameColumns(g), ...(withColors ? colorColumns(g) : {}) })))
     .select("id, espn_id");
+  let { data: rows, error: gErr } = await insertGames(true);
+  // If the team color columns haven't been added to the database yet, save without them.
+  if (gErr && /color/i.test(gErr.message)) ({ data: rows, error: gErr } = await insertGames(false));
   if (gErr) {
     await supabase.from("contests").delete().eq("id", contest.id);
     return { error: gErr.message };

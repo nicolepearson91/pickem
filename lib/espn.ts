@@ -23,6 +23,8 @@ export interface EspnTeam {
   logo: string | null;
   rank: number | null;
   score: number | null;
+  /** Hex like "#e31837", when ESPN has one. */
+  color: string | null;
 }
 
 export interface EspnGame {
@@ -65,6 +67,7 @@ function team(c: any): EspnTeam {
     logo: c?.team?.logo ?? null,
     rank: typeof rank === "number" && rank > 0 && rank <= 25 ? rank : null,
     score: Number.isFinite(score) ? score : null,
+    color: /^[0-9a-f]{6}$/i.test(c?.team?.color ?? "") ? `#${c.team.color}` : null,
   };
 }
 
@@ -129,4 +132,9 @@ export function gameColumns(g: EspnGame) {
     status_detail: g.status_detail,
     winner: g.winner,
   };
+}
+
+/** Team colors live in their own columns, added after launch; see createContest. */
+export function colorColumns(g: EspnGame) {
+  return { home_color: g.home.color, away_color: g.away.color };
 }

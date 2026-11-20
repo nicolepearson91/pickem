@@ -18,6 +18,8 @@ const cfb = [
   ["Texas Longhorns", "TEX", "Texas A&M Aggies", "TAMU", 5 * H, "pre", 0, 0, 5, 18],
   ["Iowa Hawkeyes", "IOWA", "Nebraska Cornhuskers", "NEB", 28 * H, "pre", 0, 0, null, null],
 ];
+const COLORS = { BUF: '00338d', KC: 'e31837', CHI: '0b162a', GB: '203731', DAL: '041e42', PHI: '004c54', SF: 'aa0000', SEA: '002244', MIA: '008e97', NYJ: '125740',
+  FLA: '0021a5', UGA: 'ba0c2f', OSU: 'bb0000', MICH: '00274c', TEX: 'bf5700', TAMU: '500000', IOWA: 'ffcd00', NEB: 'e41c38' };
 const state = new Map();
 function events(rows, prefix) {
   return rows.map((r, i) => {
@@ -31,7 +33,7 @@ function events(rows, prefix) {
     state.set(id, s);
     const comp = (side, nm, ab, sc, rank) => ({
       homeAway: side, score: String(sc), winner: s.st === "post" ? (side === "home" ? s.h > s.a : s.a > s.h) : undefined,
-      team: { displayName: nm, abbreviation: ab, logo: null }, curatedRank: { current: rank ?? 99 },
+      team: { displayName: nm, abbreviation: ab, logo: null, color: COLORS[ab] ?? '334155' }, curatedRank: { current: rank ?? 99 },
     });
     return {
       id, date: new Date(now + r[4]).toISOString(),
