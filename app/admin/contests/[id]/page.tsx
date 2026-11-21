@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireAdmin } from "@/lib/auth";
-import { deleteContest, recordPayment, removePayment, setContestStatus, verifyPayment } from "../../actions";
+import { deleteContest, recordPayment, removePayment, setContestStatus, setEntryFee, verifyPayment } from "../../actions";
 import { METHOD_LABEL, money } from "@/lib/payments";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Contest, Payment, PayMethod, Profile } from "@/lib/types";
@@ -37,6 +37,15 @@ export default async function AdminContestPage({ params }: { params: Promise<{ i
         </div>
         <Link href={`/contests/${cid}`} className="btn-ghost">View pick em</Link>
       </div>
+
+      <form action={setEntryFee.bind(null, cid)} className="card flex flex-wrap items-end gap-3">
+        <div>
+          <label className="label" htmlFor="fee">Entry fee ($)</label>
+          <input id="fee" name="fee" type="number" min={0} step="0.01" className="input w-32" defaultValue={fee} />
+        </div>
+        <button className="btn-ghost">Save fee</button>
+        <p className="w-full text-xs text-slate-500">Set to 0 for a free pick em. With a fee, players see your Venmo, Cash App and Apple Cash and can tap &quot;I paid&quot;.</p>
+      </form>
 
       {fee > 0 ? (
         <section className="card space-y-3">
@@ -87,7 +96,7 @@ export default async function AdminContestPage({ params }: { params: Promise<{ i
           </ul>
         </section>
       ) : (
-        <p className="card text-sm text-slate-500">This pick em is free, so there are no payments to track.</p>
+        <p className="card text-sm text-slate-500">This pick em is free, so there are no payments to track. Set an entry fee above to collect money.</p>
       )}
 
       <section className="card flex flex-wrap items-center gap-3">

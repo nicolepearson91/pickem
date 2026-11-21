@@ -108,6 +108,7 @@ export async function verifyPayment(contestId: number, userId: string, verified:
     verified_at: verified ? new Date().toISOString() : null,
   }).eq("contest_id", contestId).eq("user_id", userId);
   revalidatePath(`/admin/contests/${contestId}`);
+  revalidatePath("/admin");
 }
 
 /** For someone who paid in person and never tapped anything in the app. */
@@ -123,6 +124,7 @@ export async function removePayment(contestId: number, userId: string) {
   const { supabase } = await requireAdmin();
   await supabase.from("payments").delete().eq("contest_id", contestId).eq("user_id", userId);
   revalidatePath(`/admin/contests/${contestId}`);
+  revalidatePath("/admin");
 }
 
 /**
@@ -157,4 +159,14 @@ export async function resetPin(userId: string, pin: string): Promise<{ ok?: true
   if (error) return { error: error.message };
   await db.from("pin_attempts").delete().eq("name_key", login.name_key);
   return { ok: true };
+}
+
+export async function setEntryFee(id: number, formData: FormData) {
+  const { supabase } = await requireAdmin();
+  const fee = Math.max(0, Math.round(Number(formData.get("fee")) * 100) / 100 || 0);
+  await supabase.from("contests").update({ entry_fee: fee }).eq("id", id);
+  revalidatePath(`/admin/contests/${id}`);
+  revalidatePath("/admin");
+  revalidatePath(`/contests/${id}`);
+  revalidatePath("/");
 }
