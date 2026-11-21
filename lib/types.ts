@@ -22,6 +22,22 @@ export interface Contest {
   status: "open" | "closed";
   tiebreaker_game_id: number | null;
   created_at: string;
+  /** Percent of the pot for 2nd place; 0 = winner takes all. Missing until the payouts SQL is run. */
+  second_place_pct?: number;
+}
+
+export interface Payout {
+  contest_id: number;
+  user_id: string;
+  amount: number;
+  method: string | null;
+  paid_at: string;
+}
+
+export interface PayoutInfo {
+  user_id: string;
+  venmo_handle: string | null;
+  cashapp_tag: string | null;
 }
 
 export interface Game {

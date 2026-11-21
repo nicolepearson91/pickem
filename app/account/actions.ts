@@ -73,3 +73,13 @@ export async function changePin(current: string, next: string): Promise<Result> 
   await supabase.auth.signInWithPassword({ email: user.email!, password: pinPassword(user.id, next) });
   return { ok: true };
 }
+
+export async function savePayoutInfo(formData: FormData): Promise<Result> {
+  const { supabase, user } = await requireMember();
+  const clean = (k: string) => String(formData.get(k) || "").trim().replace(/^[@$]/, "").slice(0, 40) || null;
+  const { error } = await supabase.from("payout_info").upsert({
+    user_id: user.id, venmo_handle: clean("venmo"), cashapp_tag: clean("cashapp"), updated_at: new Date().toISOString(),
+  });
+  if (error) return { ok: false, error: /payout_info/.test(error.message) ? "This isn't switched on yet. The pool admin needs to finish setup." : error.message };
+  return { ok: true };
+}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { changePassword, changePin, rename } from "@/app/account/actions";
+import { changePassword, changePin, rename, savePayoutInfo } from "@/app/account/actions";
 
 function Status({ msg }: { msg: { ok: boolean; text: string } | null }) {
   if (!msg) return null;
@@ -99,6 +99,30 @@ export function PasswordForm({ hasPassword }: { hasPassword: boolean }) {
       </div>
       <Status msg={msg} />
       <button className="btn-primary" disabled={pending}>{pending ? "Saving…" : hasPassword ? "Change password" : "Set password"}</button>
+    </form>
+  );
+}
+
+export function PayoutInfoForm({ venmo, cashapp }: { venmo: string; cashapp: string }) {
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [pending, start] = useTransition();
+  return (
+    <form className="card space-y-3" action={(fd) => start(async () => {
+      const r = await savePayoutInfo(fd);
+      setMsg(r.ok ? { ok: true, text: "Saved." } : { ok: false, text: r.error });
+    })}>
+      <h2 className="text-lg font-bold">Where to send your winnings</h2>
+      <p className="text-sm text-slate-400">Optional. Only you and the pool admin can see these.</p>
+      <div>
+        <label className="label" htmlFor="venmo">Venmo username</label>
+        <input id="venmo" name="venmo" className="input" placeholder="@your-name" defaultValue={venmo} maxLength={40} />
+      </div>
+      <div>
+        <label className="label" htmlFor="cashapp">Cash App $cashtag</label>
+        <input id="cashapp" name="cashapp" className="input" placeholder="$YourTag" defaultValue={cashapp} maxLength={40} />
+      </div>
+      <Status msg={msg} />
+      <button className="btn-primary" disabled={pending}>{pending ? "Saving…" : "Save"}</button>
     </form>
   );
 }

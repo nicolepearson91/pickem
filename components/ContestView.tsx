@@ -3,9 +3,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { contestStandings, ordinal, type StandingRow } from "@/lib/scoring";
-import type { AppSettings, Contest, Game, Payment, Pick, Profile, Side, Tiebreaker } from "@/lib/types";
+import type { AppSettings, Contest, Game, Payment, Payout, PayoutInfo, Pick, Profile, Side, Tiebreaker } from "@/lib/types";
 import LocalTime from "./LocalTime";
 import PaymentPanel from "./PaymentPanel";
+import PayoutPanel from "./PayoutPanel";
+import { computePayouts } from "@/lib/payouts";
 import { useLiveContest } from "./useLiveContest";
 import { METHOD_LABEL, money, potTotals } from "@/lib/payments";
 
@@ -21,6 +23,8 @@ interface Props {
   /** Everyone who has made a pick, even ones still hidden. */
   playerIds: string[];
   settings: AppSettings;
+  payouts: Payout[];
+  payoutInfo: PayoutInfo[];
 }
 
 export const isLocked = (g: Game, c: Contest) =>
@@ -77,6 +81,9 @@ export default function ContestView(p: Props) {
   const live = games.some((g) => g.state === "in");
   const fee = Number(contest.entry_fee);
   const pot = potTotals(p.payments, fee);
+  const finished = games.length > 0 && games.every((g) => g.state === "post");
+  const secondPct = contest.second_place_pct ?? 0;
+  const winners = finished ? computePayouts(standings, pot.pot, secondPct) : [];
 
   return (
     <div className="space-y-5">
@@ -107,10 +114,16 @@ export default function ContestView(p: Props) {
             <p className="pb-1 text-sm text-slate-400">
               {pot.paid} paid at {money(fee)}
               {pot.pending > 0 && <> · <span className="text-amber-300">{money(pot.pendingAmount)} pending</span> from {pot.pending} more</>}
+              {secondPct > 0 && <> · {100 - secondPct}/{secondPct} split for 1st and 2nd</>}
             </p>
           </div>
         )}
       </div>
+
+      {winners.length > 0 && (
+        <PayoutPanel contestId={contest.id} contestName={contest.name} rows={winners} payouts={p.payouts} info={p.payoutInfo}
+          isAdmin={p.me.is_admin} userId={userId} secondPct={secondPct} />
+      )}
 
       {fee > 0 && (
         <PaymentPanel contest={contest} userId={userId} settings={p.settings}

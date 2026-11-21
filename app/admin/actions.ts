@@ -170,3 +170,22 @@ export async function setEntryFee(id: number, formData: FormData) {
   revalidatePath(`/contests/${id}`);
   revalidatePath("/");
 }
+
+export async function setSplit(id: number, formData: FormData) {
+  const { supabase } = await requireAdmin();
+  const pct = Math.min(50, Math.max(0, Math.round(Number(formData.get("second_pct")) || 0)));
+  await supabase.from("contests").update({ second_place_pct: pct }).eq("id", id);
+  revalidatePath(`/admin/contests/${id}`);
+  revalidatePath(`/contests/${id}`);
+}
+
+/** Records (or un-records) that the admin sent a winner their winnings. */
+export async function setPaidOut(contestId: number, userId: string, amount: number, method: string | null, paid: boolean) {
+  const { supabase } = await requireAdmin();
+  const { error } = paid
+    ? await supabase.from("payouts").upsert({ contest_id: contestId, user_id: userId, amount, method, paid_at: new Date().toISOString() },
+      { onConflict: "contest_id,user_id" })
+    : await supabase.from("payouts").delete().eq("contest_id", contestId).eq("user_id", userId);
+  revalidatePath(`/contests/${contestId}`);
+  return error ? { error: /payouts/.test(error.message) ? "Run the payouts setup SQL in Supabase first." : error.message } : {};
+}

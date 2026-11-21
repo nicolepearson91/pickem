@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireAdmin } from "@/lib/auth";
-import { deleteContest, recordPayment, removePayment, setContestStatus, setEntryFee, verifyPayment } from "../../actions";
+import { deleteContest, recordPayment, removePayment, setContestStatus, setEntryFee, setSplit, verifyPayment } from "../../actions";
 import { METHOD_LABEL, money } from "@/lib/payments";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Contest, Payment, PayMethod, Profile } from "@/lib/types";
@@ -45,6 +45,25 @@ export default async function AdminContestPage({ params }: { params: Promise<{ i
         </div>
         <button className="btn-ghost">Save fee</button>
         <p className="w-full text-xs text-slate-500">Set to 0 for a free pick em. With a fee, players see your Venmo, Cash App and Apple Cash and can tap &quot;I paid&quot;.</p>
+      </form>
+
+      <form action={setSplit.bind(null, cid)} className="card flex flex-wrap items-end gap-3">
+        <div>
+          <label className="label" htmlFor="split">How the pot is paid out</label>
+          <select id="split" name="second_pct" className="input w-auto" defaultValue={String(contest.second_place_pct ?? 0)}>
+            <option value="0">Winner takes all</option>
+            <option value="20">80% to 1st, 20% to 2nd</option>
+            <option value="25">75% to 1st, 25% to 2nd</option>
+            <option value="30">70% to 1st, 30% to 2nd</option>
+            <option value="40">60% to 1st, 40% to 2nd</option>
+          </select>
+        </div>
+        <button className="btn-ghost">Save split</button>
+        <p className="w-full text-xs text-slate-500">
+          {contest.second_place_pct === undefined
+            ? "Run the payouts setup SQL in Supabase to turn this on."
+            : "Ties split the prize money for the places they share. Winners and amounts show on the pick em once every game is final."}
+        </p>
       </form>
 
       {fee > 0 ? (
