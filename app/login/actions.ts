@@ -2,9 +2,12 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { looksAlike, sameName } from "@/lib/similar";
 import { cleanName, LOCK_MINUTES, MAX_TRIES, nameKey, pinPassword, placeholderEmail, validName, validPin } from "@/lib/pin";
 
 type Result = { ok: true } | { ok: false; error: string };
+/** similar: an existing player whose name looks like this one, so the person can say whether it's them. */
+type JoinResult = { ok: true } | { ok: false; error: string; similar?: string };
 
 const WRONG = "That name and PIN don't match.";
 
@@ -47,7 +50,7 @@ export async function signInWithPin(name: string, pin: string): Promise<Result> 
   return { ok: true };
 }
 
-export async function joinWithPin(rawName: string, pin: string, code: string): Promise<Result> {
+export async function joinWithPin(rawName: string, pin: string, code: string, notThem = false): Promise<JoinResult> {
   const name = cleanName(rawName);
   const key = nameKey(name);
   if (!validName(name)) return { ok: false, error: "Use 2 to 24 letters, numbers or spaces for your name." };
@@ -60,12 +63,18 @@ export async function joinWithPin(rawName: string, pin: string, code: string): P
   }
 
   // Names must be unique so sign-in knows who you are, and so the leaderboard isn't confusing.
-  const [{ data: taken }, { data: sameName }] = await Promise.all([
+  const [{ data: taken }, { data: everyone }] = await Promise.all([
     db.from("pin_logins").select("name_key").eq("name_key", key).maybeSingle(),
-    db.from("profiles").select("id").ilike("display_name", name.replace(/[%_\\]/g, "\\$&")).limit(1),
+    db.from("profiles").select("display_name"),
   ]);
-  if (taken || (sameName && sameName.length)) {
-    return { ok: false, error: `Someone is already called "${name}". Add a last initial or a nickname.` };
+  const names = (everyone ?? []).map((p) => p.display_name as string);
+  if (taken || names.some((n) => sameName(n, name))) {
+    return { ok: false, error: `Someone is already called "${name}". If that's you, tap Sign in below. If not, add your last initial, like "${name.split(" ")[0]} R".` };
+  }
+  // Catch "Mike" vs "Mike B": most likely the same person joining again on a new phone.
+  const alike = names.find((n) => looksAlike(n, name));
+  if (alike && !notThem) {
+    return { ok: false, similar: alike, error: `"${alike}" already joined. If that's you, sign in instead so your picks stay together.` };
   }
 
   const email = placeholderEmail();

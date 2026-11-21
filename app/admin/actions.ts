@@ -189,3 +189,106 @@ export async function setPaidOut(contestId: number, userId: string, amount: numb
   revalidatePath(`/contests/${contestId}`);
   return error ? { error: /payouts/.test(error.message) ? "Run the payouts setup SQL in Supabase first." : error.message } : {};
 }
+
+type Outcome = { ok: true; message: string } | { ok: false; error: string };
+
+async function playerPair(dupId: string, mainId?: string) {
+  const { createAdminClient } = await import("@/lib/supabase/admin");
+  const db = createAdminClient();
+  const ids = mainId ? [dupId, mainId] : [dupId];
+  const { data } = await db.from("profiles").select("id, display_name, is_admin, is_member").in("id", ids);
+  const dup = data?.find((p) => p.id === dupId);
+  const main = mainId ? data?.find((p) => p.id === mainId) : undefined;
+  return { db, dup, main };
+}
+
+/**
+ * Moves a duplicate account's picks, tiebreakers, payments and winnings into the main account,
+ * then removes the duplicate. Where both accounts have something for the same game or week,
+ * the main account's is kept (except a confirmed payment beats an unconfirmed one).
+ */
+export async function mergePlayer(dupId: string, mainId: string): Promise<Outcome> {
+  const { user } = await requireAdmin();
+  if (dupId === mainId) return { ok: false, error: "Pick a different account to merge into." };
+  const { db, dup, main } = await playerPair(dupId, mainId);
+  if (!dup || !main) return { ok: false, error: "Couldn't find one of those players. Reload the page." };
+  if (dup.is_admin || dup.id === user.id) return { ok: false, error: "The admin account can't be merged away." };
+
+  const notIn = (ids: (string | number)[]) => `(${ids.join(",")})`;
+  const fail = (what: string, e: { message: string } | null) => e ? `${what}: ${e.message}` : null;
+  const problems: string[] = [];
+
+  // Picks: one per game.
+  const { data: mainPicks } = await db.from("picks").select("game_id").eq("user_id", main.id);
+  const pickIds = (mainPicks ?? []).map((p) => p.game_id);
+  let q = db.from("picks").update({ user_id: main.id }).eq("user_id", dup.id);
+  if (pickIds.length) q = q.not("game_id", "in", notIn(pickIds));
+  const p1 = fail("picks", (await q).error); if (p1) problems.push(p1);
+
+  // Tiebreaker guesses: one per pick em.
+  const { data: mainTbs } = await db.from("tiebreakers").select("contest_id").eq("user_id", main.id);
+  const tbIds = (mainTbs ?? []).map((t) => t.contest_id);
+  let t = db.from("tiebreakers").update({ user_id: main.id }).eq("user_id", dup.id);
+  if (tbIds.length) t = t.not("contest_id", "in", notIn(tbIds));
+  const p2 = fail("tiebreakers", (await t).error); if (p2) problems.push(p2);
+
+  // Payments: one per pick em; a confirmed payment wins over an unconfirmed one.
+  const [{ data: dupPays }, { data: mainPays }] = await Promise.all([
+    db.from("payments").select("contest_id, status").eq("user_id", dup.id),
+    db.from("payments").select("contest_id, status").eq("user_id", main.id),
+  ]);
+  const mainPay = new Map((mainPays ?? []).map((p) => [p.contest_id, p.status]));
+  for (const p of dupPays ?? []) {
+    const has = mainPay.get(p.contest_id);
+    if (has === "verified" || (has === "pending" && p.status === "pending")) continue;
+    if (has) await db.from("payments").delete().eq("contest_id", p.contest_id).eq("user_id", main.id);
+    const e = fail("payments", (await db.from("payments").update({ user_id: main.id }).eq("contest_id", p.contest_id).eq("user_id", dup.id)).error);
+    if (e) problems.push(e);
+  }
+
+  // Winnings already paid out, and where to send winnings (these tables may not exist yet).
+  const { data: mainPayouts, error: poErr } = await db.from("payouts").select("contest_id").eq("user_id", main.id);
+  if (!poErr) {
+    const ids = (mainPayouts ?? []).map((p) => p.contest_id);
+    let u = db.from("payouts").update({ user_id: main.id }).eq("user_id", dup.id);
+    if (ids.length) u = u.not("contest_id", "in", notIn(ids));
+    await u;
+  }
+  const { data: mainInfo, error: piErr } = await db.from("payout_info").select("user_id").eq("user_id", main.id).maybeSingle();
+  if (!piErr && !mainInfo) await db.from("payout_info").update({ user_id: main.id }).eq("user_id", dup.id);
+
+  if (dup.is_member && !main.is_member) await db.from("profiles").update({ is_member: true }).eq("id", main.id);
+
+  if (problems.length) {
+    return { ok: false, error: `Stopped before removing "${dup.display_name}", nothing was lost. ${problems.join("; ")}` };
+  }
+  const { error } = await db.auth.admin.deleteUser(dup.id);
+  if (error) return { ok: false, error: `Moved everything, but couldn't remove the old account: ${error.message}` };
+  revalidatePath("/admin");
+  revalidatePath("/", "layout");
+  return { ok: true, message: `Merged "${dup.display_name}" into "${main.display_name}".` };
+}
+
+/** Removes a player's account along with their picks, payments and winnings records. */
+export async function deletePlayer(userId: string): Promise<Outcome> {
+  const { user } = await requireAdmin();
+  const { db, dup } = await playerPair(userId);
+  if (!dup) return { ok: false, error: "Couldn't find that player. Reload the page." };
+  if (dup.is_admin || dup.id === user.id) return { ok: false, error: "The admin account can't be deleted here." };
+  const { error } = await db.auth.admin.deleteUser(dup.id);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/admin");
+  revalidatePath("/", "layout");
+  return { ok: true, message: `Deleted "${dup.display_name}".` };
+}
+
+/** Lets the admin fix a player's name, e.g. two people called Mike. */
+export async function renamePlayer(userId: string, name: string): Promise<Outcome> {
+  await requireAdmin();
+  const { renameUser } = await import("@/lib/rename");
+  const r = await renameUser(userId, name);
+  if (!r.ok) return r;
+  revalidatePath("/admin");
+  revalidatePath("/", "layout");
+  return { ok: true, message: `Renamed to "${r.name}".` };
+}

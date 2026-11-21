@@ -6,6 +6,8 @@ import { METHOD_LABEL, money } from "@/lib/payments";
 import CopyButton from "@/components/CopyButton";
 import ResetLinkButton from "@/components/ResetLinkButton";
 import ResetPinButton from "@/components/ResetPinButton";
+import PlayerTools from "@/components/PlayerTools";
+import { looksAlike } from "@/lib/similar";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { AppSettings, Contest, Payment, Profile } from "@/lib/types";
 
@@ -17,7 +19,7 @@ export default async function AdminPage() {
     supabase.from("app_settings").select("*").eq("id", 1).single<AppSettings>(),
     supabase.from("invite").select("code").eq("id", 1).single<{ code: string }>(),
     supabase.from("contests").select("*").order("created_at", { ascending: false }),
-    supabase.from("profiles").select("id, display_name, is_admin, is_member").order("display_name"),
+    supabase.from("profiles").select("id, display_name, is_admin, is_member, created_at").order("display_name"),
     supabase.from("payments").select("*"),
   ]);
   const allPays = (pays ?? []) as Payment[];
@@ -28,8 +30,23 @@ export default async function AdminPage() {
   const pendingBy = new Map<number, number>();
   waiting.forEach((p) => pendingBy.set(p.contest_id, (pendingBy.get(p.contest_id) ?? 0) + 1));
   // Which players sign in with a name and PIN (only the server can read this list).
-  const { data: pinRows } = await createAdminClient().from("pin_logins").select("user_id, name_key");
+  const service = createAdminClient();
+  const [{ data: pinRows }, { data: pickRows }] = await Promise.all([
+    service.from("pin_logins").select("user_id, name_key"),
+    // Picks stay hidden from everyone until kickoff, so count them with the server key.
+    service.from("picks").select("user_id"),
+  ]);
   const pinName = new Map((pinRows ?? []).map((r) => [r.user_id as string, r.name_key as string]));
+  const pickCount = new Map<string, number>();
+  (pickRows ?? []).forEach((r) => pickCount.set(r.user_id, (pickCount.get(r.user_id) ?? 0) + 1));
+  const payCount = new Map<string, number>();
+  allPays.forEach((p) => payCount.set(p.user_id, (payCount.get(p.user_id) ?? 0) + 1));
+  const players = (people ?? []) as (Profile & { created_at: string })[];
+  const login = (id: string) => (pinName.has(id) ? "name + PIN" : "email");
+  // Accounts whose names look like someone else's, probably the same person who joined twice.
+  const alikeOf = new Map(players.map((p) => [p.id, players.filter((o) => o.id !== p.id && looksAlike(o.display_name, p.display_name))]));
+  const dupeCount = players.filter((p) => (alikeOf.get(p.id) ?? []).length > 0).length;
+  const joined = (d: string) => new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "America/Chicago" });
   const h = await headers();
   const origin = `${h.get("x-forwarded-proto") ?? "https"}://${h.get("host")}`;
   const link = `${origin}/join?code=${invite?.code ?? ""}`;
@@ -129,14 +146,27 @@ export default async function AdminPage() {
 
       <section className="card space-y-3">
         <h2 className="text-lg font-bold">Players</h2>
+        {dupeCount > 0 && (
+          <p className="rounded-lg bg-amber-950/50 p-3 text-sm text-amber-200">
+            Some names look alike, marked &ldquo;possible duplicate&rdquo; below. If it&apos;s the same person, tap <strong>Rename, merge or delete</strong> on
+            the extra account and merge it into the one they use. Their picks and payments move over.
+          </p>
+        )}
         <ul className="divide-y divide-slate-100 dark:divide-slate-800">
-          {((people ?? []) as Profile[]).map((p) => (
-            <li key={p.id} className="flex items-center justify-between gap-2 py-2 text-sm">
+          {players.map((p) => (
+            <li key={p.id} className="flex flex-wrap items-center justify-between gap-2 py-2.5 text-sm">
               <span className="font-semibold">
                 {p.display_name}
                 {p.is_admin && <span className="ml-2 text-xs text-emerald-600">admin</span>}
                 {!p.is_member && !p.is_admin && <span className="ml-2 text-xs text-amber-600">not in the pool</span>}
-                {pinName.has(p.id) && <span className="ml-2 text-xs font-normal text-slate-400">name + PIN</span>}
+                <span className="ml-2 text-xs font-normal text-slate-400">
+                  {login(p.id)} · joined {joined(p.created_at)} · {pickCount.get(p.id) ?? 0} picks · {payCount.get(p.id) ?? 0} payments
+                </span>
+                {(alikeOf.get(p.id) ?? []).length > 0 && (
+                  <span className="ml-2 rounded bg-amber-400/20 px-1.5 py-0.5 text-xs font-semibold text-amber-300">
+                    possible duplicate of {alikeOf.get(p.id)!.map((o) => o.display_name).join(", ")}
+                  </span>
+                )}
               </span>
               {p.id !== user.id && (
                 <span className="flex flex-wrap items-center justify-end gap-2">
@@ -144,8 +174,15 @@ export default async function AdminPage() {
                     ? <ResetPinButton userId={p.id} name={p.display_name} />
                     : <ResetLinkButton userId={p.id} name={p.display_name} />}
                   <form action={setMember.bind(null, p.id, !p.is_member)}>
-                    <button className={p.is_member ? "btn-danger" : "btn-ghost"}>{p.is_member ? "Remove" : "Let in"}</button>
+                    <button className="btn-ghost">{p.is_member ? "Remove from pool" : "Let in"}</button>
                   </form>
+                  {!p.is_admin && (
+                    <PlayerTools id={p.id} name={p.display_name} picks={pickCount.get(p.id) ?? 0} payments={payCount.get(p.id) ?? 0}
+                      suggest={(alikeOf.get(p.id) ?? []).sort((a, b) => (pickCount.get(b.id) ?? 0) - (pickCount.get(a.id) ?? 0))[0]?.id}
+                      others={players.filter((o) => o.id !== p.id).map((o) => ({
+                        id: o.id, name: o.display_name, label: `${o.display_name} (${login(o.id)}, ${pickCount.get(o.id) ?? 0} picks)`,
+                      }))} />
+                  )}
                 </span>
               )}
             </li>

@@ -15,21 +15,40 @@ export default function PinLogin({ next, inviteCode, onUseEmail }: {
   const [pin2, setPin2] = useState("");
   const [code, setCode] = useState(inviteCode ?? "");
   const [msg, setMsg] = useState<string | null>(null);
+  const [similar, setSimilar] = useState<string | null>(null);
   const [pending, start] = useTransition();
 
   // After joining, the invite step is already done, so skip the /join page.
   const dest = mode === "join" && next.startsWith("/join") ? "/" : next;
 
-  function submit(e: React.FormEvent) {
-    e.preventDefault();
+  function toSignIn(prefill?: string) {
+    setMode("signin");
     setMsg(null);
-    if (mode === "join" && pin !== pin2) return setMsg("Those PINs don't match.");
+    setSimilar(null);
+    setPin("");
+    setPin2("");
+    if (prefill) setName(prefill);
+  }
+
+  function send(notThem: boolean) {
+    setMsg(null);
+    setSimilar(null);
     start(async () => {
-      const r = mode === "signin" ? await signInWithPin(name, pin) : await joinWithPin(name, pin, code);
-      if (!r.ok) return setMsg(r.error);
+      const r = mode === "signin" ? await signInWithPin(name, pin) : await joinWithPin(name, pin, code, notThem);
+      if (!r.ok) {
+        const alike = (r as { similar?: string }).similar;
+        if (alike) return setSimilar(alike);
+        return setMsg(r.error);
+      }
       router.push(dest);
       router.refresh();
     });
+  }
+
+  function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (mode === "join" && pin !== pin2) return setMsg("Those PINs don't match.");
+    send(false);
   }
 
   const pinInput = (id: string, value: string, set: (v: string) => void, label: string) => (
@@ -45,6 +64,13 @@ export default function PinLogin({ next, inviteCode, onUseEmail }: {
   return (
     <div className="card space-y-4">
       <h1 className="text-3xl font-bold text-white">{mode === "signin" ? "Sign in" : "Join the pool"}</h1>
+      {mode === "join" && (
+        <div className="rounded-xl border border-emerald-500/50 bg-emerald-950/40 p-3 text-sm">
+          <p className="font-semibold text-white">Already joined, on this phone or another one?</p>
+          <p className="mt-0.5 text-slate-300">Don&apos;t make a second account. Sign in with the name and PIN you picked.</p>
+          <button type="button" className="btn-primary mt-2 w-full" onClick={() => toSignIn()}>I already joined, sign me in</button>
+        </div>
+      )}
       {mode === "join" && (
         <p className="text-sm text-slate-400">
           Pick the name everyone will see on the leaderboard, and a 4-digit PIN. You&apos;ll use both to sign in on any phone.
@@ -65,15 +91,24 @@ export default function PinLogin({ next, inviteCode, onUseEmail }: {
           </div>
         )}
         {msg && <p className="text-sm text-amber-300">{msg}</p>}
+        {similar && (
+          <div className="space-y-2 rounded-xl border border-amber-400/60 bg-amber-950/40 p-3 text-sm">
+            <p className="text-amber-100"><strong>&ldquo;{similar}&rdquo;</strong> already joined. Is that you?</p>
+            <button type="button" className="btn-primary w-full" onClick={() => toSignIn(similar)}>Yes, that&apos;s me. Sign me in</button>
+            <button type="button" className="btn-ghost w-full" disabled={pending} onClick={() => send(true)}>
+              No, I&apos;m someone else. Join as &ldquo;{name.trim()}&rdquo;
+            </button>
+          </div>
+        )}
         <button className="btn-primary w-full py-3 text-base" disabled={pending || pin.length !== 4 || !name.trim()}>
           {pending ? "One sec…" : mode === "signin" ? "Sign in" : "Join and start picking"}
         </button>
       </form>
       <p className="text-center text-sm text-slate-400">
         {mode === "signin" ? (
-          <>First time? <button className="font-semibold text-emerald-400 underline" onClick={() => { setMode("join"); setMsg(null); }}>Join with a name and PIN</button></>
+          <>First time? <button className="font-semibold text-emerald-400 underline" onClick={() => { setMode("join"); setMsg(null); setSimilar(null); }}>Join with a name and PIN</button></>
         ) : (
-          <>Already joined? <button className="font-semibold text-emerald-400 underline" onClick={() => { setMode("signin"); setMsg(null); }}>Sign in</button></>
+          <>Already joined? <button className="font-semibold text-emerald-400 underline" onClick={() => toSignIn()}>Sign in</button></>
         )}
       </p>
       {mode === "signin" && (

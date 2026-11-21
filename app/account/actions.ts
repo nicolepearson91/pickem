@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient as plain } from "@supabase/supabase-js";
 import { requireMember } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { cleanName, nameKey, pinPassword, validName, validPin } from "@/lib/pin";
+import { pinPassword, validPin } from "@/lib/pin";
 
 type Result = { ok: true } | { ok: false; error: string };
 
@@ -18,26 +18,10 @@ async function passwordWorks(email: string, password: string) {
 }
 
 export async function rename(formData: FormData): Promise<Result> {
-  const { supabase, user } = await requireMember();
-  const name = cleanName(String(formData.get("name") || ""));
-  if (!name) return { ok: false, error: "Enter a name." };
-  const db = createAdminClient();
-  const { data: login } = await db.from("pin_logins").select("name_key").eq("user_id", user.id).maybeSingle();
-  if (login) {
-    // Name + PIN players sign in with this name, so it must stay valid and unique.
-    if (!validName(name)) return { ok: false, error: "Use 2 to 24 letters, numbers or spaces." };
-    const key = nameKey(name);
-    if (key !== login.name_key) {
-      const [{ data: taken }, { data: same }] = await Promise.all([
-        db.from("pin_logins").select("user_id").eq("name_key", key).maybeSingle(),
-        db.from("profiles").select("id").ilike("display_name", name.replace(/[%_\\]/g, "\\$&")).neq("id", user.id).limit(1),
-      ]);
-      if (taken || (same && same.length)) return { ok: false, error: `Someone is already called "${name}".` };
-      const { error } = await db.from("pin_logins").update({ name_key: key }).eq("user_id", user.id);
-      if (error) return { ok: false, error: `Someone is already called "${name}".` };
-    }
-  }
-  await supabase.from("profiles").update({ display_name: name }).eq("id", user.id);
+  const { user } = await requireMember();
+  const { renameUser } = await import("@/lib/rename");
+  const r = await renameUser(user.id, String(formData.get("name") || ""));
+  if (!r.ok) return r;
   revalidatePath("/", "layout");
   return { ok: true };
 }
