@@ -9,9 +9,21 @@ import NavLink from "@/components/NavLink";
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 const oswald = Oswald({ subsets: ["latin"], weight: ["500", "700"], variable: "--font-oswald" });
 
+const SITE = process.env.VERCEL_ENV === "production"
+  ? `https://${process.env.SITE_HOST || "pickem-three.vercel.app"}`
+  : process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://127.0.0.1:3000";
+
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE),
   title: "Pick Em",
   description: "Weekly NFL and college football pick ems with live standings.",
+  openGraph: {
+    title: "Join our Pick Em 🏈",
+    description: "Pick the winners every week, watch live scores, and see who's on top.",
+    siteName: "Pick Em",
+    type: "website",
+  },
+  twitter: { card: "summary_large_image", title: "Join our Pick Em 🏈", description: "Pick the winners every week, watch live scores, and see who's on top." },
   applicationName: "Pick Em",
   appleWebApp: { capable: true, title: "Pick Em", statusBarStyle: "black-translucent" },
   icons: {

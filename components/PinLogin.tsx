@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { joinWithPin, signInWithPin } from "@/app/login/actions";
 
@@ -30,18 +30,27 @@ export default function PinLogin({ next, inviteCode, onUseEmail }: {
     if (prefill) setName(prefill);
   }
 
+  // Blocks a second tap while the first is still going (phones can fire two before the button greys out).
+  const busy = useRef(false);
+
   function send(notThem: boolean) {
+    if (busy.current) return;
+    busy.current = true;
     setMsg(null);
     setSimilar(null);
     start(async () => {
+      try {
       const r = mode === "signin" ? await signInWithPin(name, pin) : await joinWithPin(name, pin, code, notThem);
       if (!r.ok) {
         const alike = (r as { similar?: string }).similar;
         if (alike) return setSimilar(alike);
         return setMsg(r.error);
       }
-      router.push(dest);
-      router.refresh();
+        router.push(dest);
+        router.refresh();
+      } finally {
+        busy.current = false;
+      }
     });
   }
 

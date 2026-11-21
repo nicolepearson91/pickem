@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { headers } from "next/headers";
 import { requireAdmin } from "@/lib/auth";
-import { newInviteCode, removePayment, saveSettings, setMember, verifyPayment } from "./actions";
+import { newInviteCode, removePayment, saveSettings, setMember, setPlayersCanInvite, verifyPayment } from "./actions";
+import InviteFriendsButton from "@/components/InviteFriendsButton";
+import { inviteLink } from "@/lib/invite";
 import { METHOD_LABEL, money } from "@/lib/payments";
 import CopyButton from "@/components/CopyButton";
 import ResetLinkButton from "@/components/ResetLinkButton";
@@ -31,10 +33,11 @@ export default async function AdminPage() {
   waiting.forEach((p) => pendingBy.set(p.contest_id, (pendingBy.get(p.contest_id) ?? 0) + 1));
   // Which players sign in with a name and PIN (only the server can read this list).
   const service = createAdminClient();
-  const [{ data: pinRows }, { data: pickRows }] = await Promise.all([
+  const [{ data: pinRows }, { data: pickRows }, { data: authList }] = await Promise.all([
     service.from("pin_logins").select("user_id, name_key"),
     // Picks stay hidden from everyone until kickoff, so count them with the server key.
     service.from("picks").select("user_id"),
+    service.auth.admin.listUsers({ perPage: 1000 }),
   ]);
   const pinName = new Map((pinRows ?? []).map((r) => [r.user_id as string, r.name_key as string]));
   const pickCount = new Map<string, number>();
@@ -42,14 +45,18 @@ export default async function AdminPage() {
   const payCount = new Map<string, number>();
   allPays.forEach((p) => payCount.set(p.user_id, (payCount.get(p.user_id) ?? 0) + 1));
   const players = (people ?? []) as (Profile & { created_at: string })[];
-  const login = (id: string) => (pinName.has(id) ? "name + PIN" : "email");
+  // A name + PIN sign-up that broke halfway: it has a name but no way to sign in.
+  const unfinished = new Set((authList?.users ?? [])
+    .filter((u) => u.email?.endsWith("@players.pickem.invalid") && !pinName.has(u.id)).map((u) => u.id));
+  const login = (id: string) => (pinName.has(id) ? "name + PIN" : unfinished.has(id) ? "unfinished sign-up, can't sign in" : "email");
   // Accounts whose names look like someone else's, probably the same person who joined twice.
   const alikeOf = new Map(players.map((p) => [p.id, players.filter((o) => o.id !== p.id && looksAlike(o.display_name, p.display_name))]));
   const dupeCount = players.filter((p) => (alikeOf.get(p.id) ?? []).length > 0).length;
   const joined = (d: string) => new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "America/Chicago" });
   const h = await headers();
   const origin = `${h.get("x-forwarded-proto") ?? "https"}://${h.get("host")}`;
-  const link = `${origin}/join?code=${invite?.code ?? ""}`;
+  const shared = await inviteLink(true);
+  const link = shared.link ?? `${origin}/join?code=${invite?.code ?? ""}`;
 
   return (
     <div className="space-y-6">
@@ -95,8 +102,16 @@ export default async function AdminPage() {
         <div className="flex flex-wrap items-center gap-2">
           <code className="min-w-0 flex-1 truncate rounded bg-slate-100 px-2 py-1.5 font-mono text-sm dark:bg-slate-800">{link}</code>
           <CopyButton text={link} />
+          <InviteFriendsButton link={link} className="btn-primary" />
           <form action={newInviteCode}><button className="btn-ghost">New code</button></form>
         </div>
+        <form action={setPlayersCanInvite.bind(null, !shared.playersCanInvite)} className="flex flex-wrap items-center gap-3 text-sm">
+          <span className={shared.playersCanInvite ? "text-emerald-400" : "text-slate-400"}>
+            {shared.playersCanInvite ? "✓ Players can share this link with friends (Invite friends button on their home page)" : "Only you can share this link right now"}
+          </span>
+          <button className="btn-ghost" disabled={!shared.settingReady}>{shared.playersCanInvite ? "Turn off" : "Turn on"}</button>
+          {!shared.settingReady && <span className="text-xs text-slate-500">Run the invite sharing SQL in Supabase to be able to turn this off.</span>}
+        </form>
         <p className="text-xs text-slate-500">Making a new code stops the old link from working. People already in stay in.</p>
       </section>
 

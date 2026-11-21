@@ -292,3 +292,10 @@ export async function renamePlayer(userId: string, name: string): Promise<Outcom
   revalidatePath("/", "layout");
   return { ok: true, message: `Renamed to "${r.name}".` };
 }
+
+export async function setPlayersCanInvite(on: boolean) {
+  const { supabase } = await requireAdmin();
+  await supabase.from("app_settings").update({ players_can_invite: on }).eq("id", 1);
+  revalidatePath("/admin");
+  revalidatePath("/");
+}

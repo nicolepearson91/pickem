@@ -2,6 +2,8 @@ import Link from "next/link";
 import { requireMember } from "@/lib/auth";
 import type { Contest, Game, Payment, Pick as PickRow } from "@/lib/types";
 import { METHOD_LABEL, money, potTotals } from "@/lib/payments";
+import InviteFriendsButton from "@/components/InviteFriendsButton";
+import { inviteLink } from "@/lib/invite";
 
 export const dynamic = "force-dynamic";
 
@@ -24,6 +26,8 @@ export default async function Home() {
   const potBy = new Map(list.map((c) => [c.id,
     potTotals((allPays ?? []).filter((x) => x.contest_id === c.id), Number(c.entry_fee)).pot]));
 
+  const { link: invite } = await inviteLink(profile.is_admin);
+
   const open = list.filter((c) => c.status === "open");
   const closed = list.filter((c) => c.status === "closed");
 
@@ -34,7 +38,10 @@ export default async function Home() {
           <h1 className="text-3xl font-black">Pick ems</h1>
           <p className="text-slate-500">Pick a winner for every game before it kicks off.</p>
         </div>
-        {profile.is_admin && <Link href="/admin/new" className="btn-primary">+ New pick em</Link>}
+        <div className="flex flex-wrap gap-2">
+          {invite && <InviteFriendsButton link={invite} />}
+          {profile.is_admin && <Link href="/admin/new" className="btn-primary">+ New pick em</Link>}
+        </div>
       </div>
 
       {open.length === 0 && (

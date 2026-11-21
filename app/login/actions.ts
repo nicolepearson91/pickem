@@ -1,5 +1,6 @@
 "use server";
 
+import { randomUUID } from "node:crypto";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { looksAlike, sameName } from "@/lib/similar";
@@ -62,43 +63,88 @@ export async function joinWithPin(rawName: string, pin: string, code: string, no
     return { ok: false, error: "That invite code didn't work. Use the link the pool admin sent you." };
   }
 
-  // Names must be unique so sign-in knows who you are, and so the leaderboard isn't confusing.
-  const [{ data: taken }, { data: everyone }] = await Promise.all([
-    db.from("pin_logins").select("name_key").eq("name_key", key).maybeSingle(),
-    db.from("profiles").select("display_name"),
-  ]);
+  const takenMsg = `Someone is already called "${name}". If that's you, tap Sign in below. If not, add your last initial, like "${name.split(" ")[0]} R".`;
+
+  // Same name and same PIN as an existing player: this is a retry or a double tap, so just sign them in.
+  const { data: existing, error: lookupErr } = await db.from("pin_logins").select("user_id").eq("name_key", key).maybeSingle();
+  if (lookupErr) return { ok: false, error: `Joining isn't set up yet (${lookupErr.message}). Tell the pool admin.` };
+  if (existing) return (await signInAs(existing.user_id, pin)) ? { ok: true } : { ok: false, error: takenMsg };
+
+  // A sign-up that broke halfway can leave a name behind with no way to sign in. Clear those for this name.
+  await clearUnfinishedSignups(name);
+
+  const { data: everyone } = await db.from("profiles").select("display_name");
   const names = (everyone ?? []).map((p) => p.display_name as string);
-  if (taken || names.some((n) => sameName(n, name))) {
-    return { ok: false, error: `Someone is already called "${name}". If that's you, tap Sign in below. If not, add your last initial, like "${name.split(" ")[0]} R".` };
-  }
+  if (names.some((n) => sameName(n, name))) return { ok: false, error: takenMsg };
   // Catch "Mike" vs "Mike B": most likely the same person joining again on a new phone.
   const alike = names.find((n) => looksAlike(n, name));
   if (alike && !notThem) {
     return { ok: false, similar: alike, error: `"${alike}" already joined. If that's you, sign in instead so your picks stay together.` };
   }
 
-  const email = placeholderEmail();
-  const { data: created, error: cErr } = await db.auth.admin.createUser({
-    email,
-    password: crypto.randomUUID() + crypto.randomUUID(),
+  // Create the account with its PIN already set, so there's no half-made state if anything fails later.
+  const uid = randomUUID();
+  const { error: cErr } = await db.auth.admin.createUser({
+    id: uid,
+    email: placeholderEmail(),
+    password: pinPassword(uid, pin),
     email_confirm: true,
     user_metadata: { display_name: name, pin_login: true },
   });
-  if (cErr || !created.user) return { ok: false, error: "Couldn't create your account. Try again." };
-  const uid = created.user.id;
+  if (cErr) return { ok: false, error: `Couldn't create your account: ${cErr.message}. Try again in a moment.` };
 
   const { error: kErr } = await db.from("pin_logins").insert({ name_key: key, user_id: uid });
   if (kErr) {
     await db.auth.admin.deleteUser(uid);
-    return { ok: false, error: `Someone is already called "${name}". Add a last initial or a nickname.` };
+    if (kErr.code === "23505") {
+      // Someone (very likely this same person, from a double tap) grabbed the name a moment ago.
+      const { data: winner } = await db.from("pin_logins").select("user_id").eq("name_key", key).maybeSingle();
+      if (winner && (await signInAs(winner.user_id, pin))) return { ok: true };
+      return { ok: false, error: takenMsg };
+    }
+    return { ok: false, error: `Couldn't save your name (${kErr.message}). Tell the pool admin.` };
   }
-  await db.auth.admin.updateUserById(uid, { password: pinPassword(uid, pin) });
   await db.from("profiles").update({ is_member: true }).eq("id", uid);
 
-  const supabase = await createClient();
-  const { error } = await supabase.auth.signInWithPassword({ email, password: pinPassword(uid, pin) });
-  if (error) return { ok: false, error: "Your account was made, but signing in failed. Try signing in with your name and PIN." };
+  if (!(await signInAs(uid, pin))) {
+    return { ok: false, error: "Your account is ready. Tap Sign in below and use your name and PIN." };
+  }
   return { ok: true };
+}
+
+/** Signs this browser in as a name + PIN player. Returns false if the PIN is wrong. */
+async function signInAs(userId: string, pin: string) {
+  const db = createAdminClient();
+  const { data: u } = await db.auth.admin.getUserById(userId);
+  if (!u?.user?.email) return false;
+  const supabase = await createClient();
+  const { error } = await supabase.auth.signInWithPassword({ email: u.user.email, password: pinPassword(userId, pin) });
+  if (error) return false;
+  await db.from("profiles").update({ is_member: true }).eq("id", userId);
+  await db.from("pin_attempts").delete().eq("name_key", (await db.from("pin_logins").select("name_key").eq("user_id", userId).maybeSingle()).data?.name_key ?? "");
+  return true;
+}
+
+/**
+ * Removes name + PIN accounts that never finished being created: they have the name but no sign-in,
+ * no picks and no payments, so nobody can ever use them. Only touches ones older than two minutes.
+ */
+async function clearUnfinishedSignups(name: string) {
+  const db = createAdminClient();
+  const { data: profiles } = await db.from("profiles").select("id, display_name, is_admin, created_at");
+  const suspects = (profiles ?? []).filter((p) => !p.is_admin && sameName(p.display_name, name)
+    && Date.now() - new Date(p.created_at).getTime() > 2 * 60_000);
+  for (const p of suspects) {
+    const [{ data: login }, { count: picks }, { count: pays }, { data: u }] = await Promise.all([
+      db.from("pin_logins").select("user_id").eq("user_id", p.id).maybeSingle(),
+      db.from("picks").select("user_id", { count: "exact", head: true }).eq("user_id", p.id),
+      db.from("payments").select("user_id", { count: "exact", head: true }).eq("user_id", p.id),
+      db.auth.admin.getUserById(p.id),
+    ]);
+    const unfinished = !login && !picks && !pays && u?.user?.user_metadata?.pin_login === true
+      && (u.user.email ?? "").endsWith("@players.pickem.invalid");
+    if (unfinished) await db.auth.admin.deleteUser(p.id);
+  }
 }
 
 /**
