@@ -143,3 +143,18 @@ export async function makeResetLink(userId: string): Promise<{ link?: string; er
   const q = new URLSearchParams({ token_hash: data.properties.hashed_token, type: "recovery", next: "/reset-password" });
   return { link: `${origin}/auth/confirm?${q}` };
 }
+
+/** Sets a new 4-digit PIN for a name + PIN player and clears any lockout. */
+export async function resetPin(userId: string, pin: string): Promise<{ ok?: true; error?: string }> {
+  await requireAdmin();
+  const { validPin, pinPassword } = await import("@/lib/pin");
+  if (!validPin(pin)) return { error: "The PIN must be exactly 4 digits." };
+  const { createAdminClient } = await import("@/lib/supabase/admin");
+  const db = createAdminClient();
+  const { data: login } = await db.from("pin_logins").select("name_key").eq("user_id", userId).maybeSingle();
+  if (!login) return { error: "That player signs in with email, not a PIN." };
+  const { error } = await db.auth.admin.updateUserById(userId, { password: pinPassword(userId, pin) });
+  if (error) return { error: error.message };
+  await db.from("pin_attempts").delete().eq("name_key", login.name_key);
+  return { ok: true };
+}

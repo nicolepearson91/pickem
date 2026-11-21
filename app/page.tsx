@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { requireMember } from "@/lib/auth";
 import type { Contest, Game, Payment, Pick as PickRow } from "@/lib/types";
-import { METHOD_LABEL, money } from "@/lib/payments";
+import { METHOD_LABEL, money, potTotals } from "@/lib/payments";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +16,13 @@ export default async function Home() {
   const picksBy = new Map<number, number>();
   (myPicks as Pick<PickRow, "contest_id">[] | null)?.forEach((p) => picksBy.set(p.contest_id, (picksBy.get(p.contest_id) ?? 0) + 1));
   const payBy = new Map(((myPayments ?? []) as Payment[]).map((p) => [p.contest_id, p]));
+
+  const ids = list.filter((c) => Number(c.entry_fee) > 0).map((c) => c.id);
+  const { data: allPays } = ids.length
+    ? await supabase.from("payments").select("contest_id, status").in("contest_id", ids)
+    : { data: [] as { contest_id: number; status: string }[] };
+  const potBy = new Map(list.map((c) => [c.id,
+    potTotals((allPays ?? []).filter((x) => x.contest_id === c.id), Number(c.entry_fee)).pot]));
 
   const open = list.filter((c) => c.status === "open");
   const closed = list.filter((c) => c.status === "closed");
@@ -37,14 +44,14 @@ export default async function Home() {
       )}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {open.map((c) => <ContestCard key={c.id} c={c} picked={picksBy.get(c.id) ?? 0} pay={payBy.get(c.id)} />)}
+        {open.map((c) => <ContestCard key={c.id} c={c} picked={picksBy.get(c.id) ?? 0} pay={payBy.get(c.id)} pot={potBy.get(c.id) ?? 0} />)}
       </div>
 
       {closed.length > 0 && (
         <section className="space-y-3">
           <h2 className="text-lg font-bold text-slate-500">Past weeks</h2>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {closed.map((c) => <ContestCard key={c.id} c={c} picked={picksBy.get(c.id) ?? 0} pay={payBy.get(c.id)} />)}
+            {closed.map((c) => <ContestCard key={c.id} c={c} picked={picksBy.get(c.id) ?? 0} pay={payBy.get(c.id)} pot={potBy.get(c.id) ?? 0} />)}
           </div>
         </section>
       )}
@@ -52,8 +59,8 @@ export default async function Home() {
   );
 }
 
-function ContestCard({ c, picked, pay }: {
-  c: Contest & { games: Pick<Game, "id" | "state" | "kickoff">[] }; picked: number; pay?: Payment;
+function ContestCard({ c, picked, pay, pot }: {
+  c: Contest & { games: Pick<Game, "id" | "state" | "kickoff">[] }; picked: number; pay?: Payment; pot: number;
 }) {
   const total = c.games.length;
   const live = c.games.some((g) => g.state === "in");
@@ -75,7 +82,7 @@ function ContestCard({ c, picked, pay }: {
       <p className="mt-1 text-sm text-slate-500">{picked} of {total} picked</p>
       {fee > 0 && (
         <p className="mt-2 text-sm">
-          Entry {money(fee)} ·{" "}
+          Pot <span className="font-semibold text-amber-300">{money(pot)}</span> · Entry {money(fee)} ·{" "}
           {pay?.status === "verified" ? <span className="font-semibold text-emerald-600">Paid ✓</span>
             : pay ? <span className="font-semibold text-amber-600">{METHOD_LABEL[pay.method]} pending</span>
             : <span className="font-semibold text-red-600">Not paid</span>}

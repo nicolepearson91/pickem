@@ -4,6 +4,8 @@ import { requireAdmin } from "@/lib/auth";
 import { newInviteCode, saveSettings, setMember } from "./actions";
 import CopyButton from "@/components/CopyButton";
 import ResetLinkButton from "@/components/ResetLinkButton";
+import ResetPinButton from "@/components/ResetPinButton";
+import { createAdminClient } from "@/lib/supabase/admin";
 import type { AppSettings, Contest, Profile } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -16,6 +18,9 @@ export default async function AdminPage() {
     supabase.from("contests").select("*").order("created_at", { ascending: false }),
     supabase.from("profiles").select("id, display_name, is_admin, is_member").order("display_name"),
   ]);
+  // Which players sign in with a name and PIN (only the server can read this list).
+  const { data: pinRows } = await createAdminClient().from("pin_logins").select("user_id, name_key");
+  const pinName = new Map((pinRows ?? []).map((r) => [r.user_id as string, r.name_key as string]));
   const h = await headers();
   const origin = `${h.get("x-forwarded-proto") ?? "https"}://${h.get("host")}`;
   const link = `${origin}/join?code=${invite?.code ?? ""}`;
@@ -86,10 +91,13 @@ export default async function AdminPage() {
                 {p.display_name}
                 {p.is_admin && <span className="ml-2 text-xs text-emerald-600">admin</span>}
                 {!p.is_member && !p.is_admin && <span className="ml-2 text-xs text-amber-600">not in the pool</span>}
+                {pinName.has(p.id) && <span className="ml-2 text-xs font-normal text-slate-400">name + PIN</span>}
               </span>
               {p.id !== user.id && (
                 <span className="flex flex-wrap items-center justify-end gap-2">
-                  <ResetLinkButton userId={p.id} name={p.display_name} />
+                  {pinName.has(p.id)
+                    ? <ResetPinButton userId={p.id} name={p.display_name} />
+                    : <ResetLinkButton userId={p.id} name={p.display_name} />}
                   <form action={setMember.bind(null, p.id, !p.is_member)}>
                     <button className={p.is_member ? "btn-danger" : "btn-ghost"}>{p.is_member ? "Remove" : "Let in"}</button>
                   </form>

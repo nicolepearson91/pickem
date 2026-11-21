@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { requireMember } from "@/lib/auth";
 import { contestStandings, ordinal, seasonStandings } from "@/lib/scoring";
-import type { Contest, Game, League, Pick, Profile, Tiebreaker } from "@/lib/types";
+import type { Contest, Game, League, Payment, Pick, Profile, Tiebreaker } from "@/lib/types";
+import { money, potTotals } from "@/lib/payments";
 
 export const dynamic = "force-dynamic";
 
@@ -18,11 +19,16 @@ export default async function StandingsPage({ searchParams }: { searchParams: Pr
     .eq("league", league).eq("season", season).order("week");
   const list = (contests ?? []) as (Contest & { games: Game[] })[];
   const ids = list.map((c) => c.id);
-  const [{ data: picks }, { data: tbs }, { data: people }] = await Promise.all([
+  const [{ data: picks }, { data: tbs }, { data: people }, { data: pays }] = await Promise.all([
     ids.length ? supabase.from("picks").select("user_id, game_id, contest_id, side").in("contest_id", ids) : { data: [] },
     ids.length ? supabase.from("tiebreakers").select("*").in("contest_id", ids) : { data: [] },
     supabase.from("profiles").select("id, display_name, is_admin, is_member"),
+    ids.length ? supabase.from("payments").select("contest_id, status").in("contest_id", ids) : { data: [] },
   ]);
+  const season_pot = list.reduce((acc, c) => {
+    const t = potTotals(((pays ?? []) as { contest_id: number; status: Payment["status"] }[]).filter((x) => x.contest_id === c.id), Number(c.entry_fee));
+    return { pot: acc.pot + t.pot, pending: acc.pending + t.pendingAmount };
+  }, { pot: 0, pending: 0 });
 
   const weeks = list.map((c) => ({
     contest: c,
@@ -53,6 +59,18 @@ export default async function StandingsPage({ searchParams }: { searchParams: Pr
           ))}
         </div>
       </div>
+
+      {(season_pot.pot > 0 || season_pot.pending > 0) && (
+        <div className="card flex flex-wrap items-end gap-x-6 gap-y-1">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">{season} season pot, all weeks</p>
+            <p className="font-display text-4xl font-bold leading-none text-amber-300 tabular-nums">{money(season_pot.pot)}</p>
+          </div>
+          <p className="pb-1 text-sm text-slate-400">
+            Confirmed payments only{season_pot.pending > 0 && <> · <span className="text-amber-300">{money(season_pot.pending)} pending</span></>}
+          </p>
+        </div>
+      )}
 
       <div className="card overflow-x-auto p-0">
         <table className="w-full text-sm">

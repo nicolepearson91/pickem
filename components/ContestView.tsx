@@ -7,7 +7,7 @@ import type { AppSettings, Contest, Game, Payment, Pick, Profile, Side, Tiebreak
 import LocalTime from "./LocalTime";
 import PaymentPanel from "./PaymentPanel";
 import { useLiveContest } from "./useLiveContest";
-import { METHOD_LABEL } from "@/lib/payments";
+import { METHOD_LABEL, money, potTotals } from "@/lib/payments";
 
 interface Props {
   me: Profile;
@@ -75,6 +75,8 @@ export default function ContestView(p: Props) {
   const pickedCount = games.filter((g) => mine[g.id]).length;
   const myRow = standings.find((r) => r.user_id === userId);
   const live = games.some((g) => g.state === "in");
+  const fee = Number(contest.entry_fee);
+  const pot = potTotals(p.payments, fee);
 
   return (
     <div className="space-y-5">
@@ -96,9 +98,21 @@ export default function ContestView(p: Props) {
             </span>
           )}
         </div>
+        {fee > 0 && (
+          <div className="mt-4 flex flex-wrap items-end gap-x-6 gap-y-1">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Pot</p>
+              <p className="font-display text-4xl font-bold leading-none text-amber-300 tabular-nums">{money(pot.pot)}</p>
+            </div>
+            <p className="pb-1 text-sm text-slate-400">
+              {pot.paid} paid at {money(fee)}
+              {pot.pending > 0 && <> · <span className="text-amber-300">{money(pot.pendingAmount)} pending</span> from {pot.pending} more</>}
+            </p>
+          </div>
+        )}
       </div>
 
-      {Number(contest.entry_fee) > 0 && (
+      {fee > 0 && (
         <PaymentPanel contest={contest} userId={userId} settings={p.settings}
           payment={p.payments.find((x) => x.user_id === userId)} adminName={p.people.find((x) => x.is_admin)?.display_name} />
       )}

@@ -16,6 +16,16 @@ Players can use **Forgot password?** or **Email me a sign-in link** on the sign-
 
 Either way, the admin can always go to **Admin > Players > Password reset link** and text that link to the player. It works once, on any device, within an hour.
 
+## Name + PIN sign-in
+
+Players can join from the invite link with just a name and a 4-digit PIN, no email needed, and sign in on any phone with the same name and PIN. Names are unique. After 5 wrong PINs that name is locked for 15 minutes. If someone forgets their PIN, open Admin, find them under Players, tap **Reset PIN** and text them the new one. Email and Google sign-in still work.
+
+PINs are never stored. The server turns each PIN into a long password using a secret key (`PIN_SECRET` in Vercel if set, otherwise the Supabase secret key). If that key ever changes, PIN players will need their PINs reset.
+
+## The pot
+
+Each pick em shows its pot: the entry fee times the payments the admin has confirmed. Payments players have marked as sent but that aren't confirmed yet show separately as pending. The Season page shows the total pot for the season.
+
 ## Rules
 
 - 1 point per correct pick. Tied games count for nobody.

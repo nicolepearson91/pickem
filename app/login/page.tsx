@@ -3,6 +3,7 @@
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import PinLogin from "@/components/PinLogin";
 
 type Mode = "signin" | "signup" | "link" | "forgot";
 
@@ -13,7 +14,7 @@ const TITLES: Record<Mode, string> = {
   forgot: "Reset your password",
 };
 
-function LoginForm() {
+function EmailLogin({ onUsePin }: { onUsePin: () => void }) {
   const router = useRouter();
   const params = useSearchParams();
   const next = params.get("next") || "/";
@@ -152,8 +153,28 @@ function LoginForm() {
             )}
           </p>
         )}
+        <div className="border-t border-slate-800 pt-3 text-center">
+          <button className="text-sm font-semibold text-slate-400 hover:text-white" onClick={onUsePin}>
+            Use your name and PIN instead
+          </button>
+        </div>
       </div>
     </div>
+  );
+}
+
+function LoginChooser() {
+  const params = useSearchParams();
+  const next = params.get("next") || "/";
+  // Invite links arrive as /login?next=/join?code=XYZ
+  const inviteCode = next.startsWith("/join") ? new URLSearchParams(next.split("?")[1] ?? "").get("code") : null;
+  const [method, setMethod] = useState<"pin" | "email">(params.get("error") ? "email" : "pin");
+  return method === "pin" ? (
+    <div className="mx-auto max-w-sm">
+      <PinLogin next={next} inviteCode={inviteCode} onUseEmail={() => setMethod("email")} />
+    </div>
+  ) : (
+    <EmailLogin onUsePin={() => setMethod("pin")} />
   );
 }
 
@@ -167,7 +188,7 @@ function friendly(m: string) {
 export default function LoginPage() {
   return (
     <Suspense>
-      <LoginForm />
+      <LoginChooser />
     </Suspense>
   );
 }

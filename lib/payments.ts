@@ -23,3 +23,10 @@ export function cashAppLink(tag: string, amount: number) {
 export function money(n: number) {
   return Number(n).toLocaleString("en-US", { style: "currency", currency: "USD" });
 }
+
+/** The pot: money the admin has confirmed, plus money players say they sent but isn't confirmed yet. */
+export function potTotals(payments: { status: string }[], fee: number) {
+  const paid = payments.filter((p) => p.status === "verified").length;
+  const pending = payments.filter((p) => p.status !== "verified").length;
+  return { paid, pending, pot: paid * Number(fee), pendingAmount: pending * Number(fee) };
+}
