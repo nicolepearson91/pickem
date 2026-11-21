@@ -55,7 +55,7 @@ export default async function AdminPage() {
               </span>
               <span className="flex gap-2">
                 <Link className="btn-ghost" href={`/contests/${c.id}`}>View</Link>
-                <Link className="btn-ghost" href={`/admin/contests/${c.id}`}>Payments &amp; settings</Link>
+                <Link className="btn-ghost" href={`/admin/contests/${c.id}`}>Payments, settings &amp; delete</Link>
               </span>
             </li>
           ))}

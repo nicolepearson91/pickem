@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { requireAdmin } from "@/lib/auth";
 import { deleteContest, recordPayment, removePayment, setContestStatus, verifyPayment } from "../../actions";
 import { METHOD_LABEL, money } from "@/lib/payments";
+import { createAdminClient } from "@/lib/supabase/admin";
 import type { Contest, Payment, PayMethod, Profile } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -18,6 +19,8 @@ export default async function AdminContestPage({ params }: { params: Promise<{ i
     supabase.from("picks").select("user_id").eq("contest_id", cid),
   ]);
   if (!contest) notFound();
+  // Real totals for the delete warning (picks stay hidden from everyone until kickoff, even the admin).
+  const { count: pickCount } = await createAdminClient().from("picks").select("user_id", { count: "exact", head: true }).eq("contest_id", cid);
   const payBy = new Map(((payments ?? []) as Payment[]).map((p) => [p.user_id, p]));
   const players = ((people ?? []) as Profile[]).filter((p) => p.is_member || p.is_admin);
   const played = new Set((picks ?? []).map((p) => p.user_id));
@@ -95,7 +98,11 @@ export default async function AdminContestPage({ params }: { params: Promise<{ i
         <details className="relative">
           <summary className="btn-danger list-none">Delete pick em</summary>
           <form action={deleteContest.bind(null, cid)} className="mt-2 flex items-center gap-2 text-sm">
-            <span>This removes every pick and payment record for it.</span>
+            <span>
+              {(pickCount ?? 0) > 0 || (payments ?? []).length > 0
+                ? <><strong className="text-red-400">Heads up:</strong> {pickCount ?? 0} pick{pickCount === 1 ? "" : "s"} and {(payments ?? []).length} payment record{(payments ?? []).length === 1 ? "" : "s"} will be erased too. This can&apos;t be undone.</>
+                : "Nobody has picked yet. This can't be undone."}
+            </span>
             <button className="btn bg-red-600 text-white hover:bg-red-700">Yes, delete</button>
           </form>
         </details>

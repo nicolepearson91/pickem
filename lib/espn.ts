@@ -138,3 +138,33 @@ export function gameColumns(g: EspnGame) {
 export function colorColumns(g: EspnGame) {
   return { home_color: g.home.color, away_color: g.away.color };
 }
+
+/**
+ * Best guess at the current season and week, used as the New pick em default.
+ * Asks ESPN first; if that fails, counts weeks from the Tuesday before the first Thursday after Labor Day.
+ */
+export async function currentWeek(league: League, now = new Date()): Promise<{ season: number; seasonType: number; week: number }> {
+  try {
+    const sport = league === "nfl" ? "nfl" : "college-football";
+    const base = (typeof process !== "undefined" && process.env.ESPN_BASE_URL) || "https://site.api.espn.com";
+    const res = await fetch(`${base}/apis/site/v2/sports/football/${sport}/scoreboard`, { cache: "no-store", signal: AbortSignal.timeout(4000) });
+    const j = await res.json();
+    const season = Number(j?.season?.year), seasonType = Number(j?.season?.type), week = Number(j?.week?.number);
+    if (season > 2000 && (seasonType === 2 || seasonType === 3) && week >= 1) return { season, seasonType, week };
+  } catch { /* fall through */ }
+  return { season: guessSeason(now), seasonType: 2, week: guessWeek(league, now) };
+}
+
+export function guessSeason(now: Date) {
+  return now.getMonth() < 7 ? now.getFullYear() - 1 : now.getFullYear();
+}
+
+export function guessWeek(league: League, now: Date) {
+  const season = guessSeason(now);
+  const sept1 = new Date(season, 8, 1);
+  const laborDay = new Date(season, 8, 1 + ((8 - sept1.getDay()) % 7));
+  // NFL week 1 starts the Tuesday after Labor Day; college week 1 is the week before.
+  const start = new Date(laborDay.getTime() + (league === "nfl" ? 1 : -6) * 86400000);
+  const n = Math.floor((now.getTime() - start.getTime()) / (7 * 86400000)) + 1;
+  return Math.min(league === "nfl" ? 18 : 16, Math.max(1, n));
+}

@@ -8,11 +8,20 @@ import LocalTime from "./LocalTime";
 
 type Filter = "all" | "ranked" | "top25both";
 
-export default function ContestBuilder({ defaultSeason, defaultWeek }: { defaultSeason: number; defaultWeek: number }) {
-  const [league, setLeague] = useState<League>("nfl");
-  const [season, setSeason] = useState(defaultSeason);
-  const [seasonType, setSeasonType] = useState(2);
-  const [week, setWeek] = useState(defaultWeek);
+type Defaults = Record<League, { season: number; seasonType: number; week: number }>;
+
+export default function ContestBuilder({ defaults }: { defaults: Defaults }) {
+  const [league, setLeagueRaw] = useState<League>("nfl");
+  const [season, setSeason] = useState(defaults.nfl.season);
+  const [seasonType, setSeasonType] = useState(defaults.nfl.seasonType);
+  const [week, setWeek] = useState(defaults.nfl.week);
+  // Switching league jumps to that league's current week.
+  const setLeague = (l: League) => {
+    setLeagueRaw(l);
+    setSeason(defaults[l].season);
+    setSeasonType(defaults[l].seasonType);
+    setWeek(defaults[l].week);
+  };
   const [group, setGroup] = useState("80");
   const [games, setGames] = useState<EspnGame[] | null>(null);
   const [picked, setPicked] = useState<Set<string>>(new Set());

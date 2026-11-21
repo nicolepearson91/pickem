@@ -1,26 +1,19 @@
-import { revalidatePath } from "next/cache";
 import { requireMember } from "@/lib/auth";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { NameForm, PasswordForm, PinForm } from "@/components/AccountForms";
 
-async function rename(formData: FormData) {
-  "use server";
-  const { supabase, user } = await requireMember();
-  const name = String(formData.get("name") || "").trim().slice(0, 40);
-  if (name) await supabase.from("profiles").update({ display_name: name }).eq("id", user.id);
-  revalidatePath("/", "layout");
-}
+export const dynamic = "force-dynamic";
 
 export default async function AccountPage() {
-  const { profile } = await requireMember();
+  const { user, profile } = await requireMember();
+  const { data: login } = await createAdminClient().from("pin_logins").select("name_key").eq("user_id", user.id).maybeSingle();
+  const providers = (user.app_metadata?.providers as string[] | undefined) ?? [];
+  const hasPassword = providers.includes("email");
   return (
-    <div className="mx-auto max-w-sm">
-      <form action={rename} className="card space-y-3">
-        <h1 className="text-2xl font-black">Your account</h1>
-        <div>
-          <label className="label" htmlFor="name">Name on the leaderboard</label>
-          <input id="name" name="name" className="input" defaultValue={profile.display_name} maxLength={40} required />
-        </div>
-        <button className="btn-primary">Save</button>
-      </form>
+    <div className="mx-auto max-w-sm space-y-4">
+      <NameForm name={profile.display_name} usesPin={!!login} />
+      {login ? <PinForm /> : <PasswordForm hasPassword={hasPassword} />}
+      {!login && user.email && <p className="text-center text-xs text-slate-500">Signed in as {user.email}</p>}
     </div>
   );
 }

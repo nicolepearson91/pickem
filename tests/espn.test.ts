@@ -41,3 +41,12 @@ test("payment links", () => {
   assert.equal(venmoLink("@Nic-P", 10, "NFL Week 12"), "https://venmo.com/Nic-P?txn=pay&amount=10.00&note=NFL+Week+12");
   assert.equal(cashAppLink("$NicP", 5), "https://cash.app/$NicP/5.00");
 });
+
+test("guessWeek matches the real 2026 NFL calendar", async () => {
+  const { guessWeek, guessSeason } = await import("../lib/espn.ts");
+  assert.equal(guessSeason(new Date(2026, 10, 20, 19)), 2026);
+  assert.equal(guessWeek("nfl", new Date(2026, 10, 20, 19)), 11); // Fri Nov 20, 2026
+  assert.equal(guessWeek("nfl", new Date(2026, 8, 10, 19)), 1); // opener Thu Sep 10
+  assert.equal(guessWeek("nfl", new Date(2026, 8, 15, 12)), 2); // following Tuesday
+  assert.equal(guessWeek("nfl", new Date(2027, 0, 3, 12)), 17);
+});

@@ -4,6 +4,7 @@ import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import PinLogin from "@/components/PinLogin";
+import { sendResetEmail } from "./actions";
 
 type Mode = "signin" | "signup" | "link" | "forgot";
 
@@ -53,8 +54,8 @@ function EmailLogin({ onUsePin }: { onUsePin: () => void }) {
         return setSent(true);
       }
       if (mode === "forgot") {
-        const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: callback("/reset-password") });
-        if (error) return setMsg(friendly(error.message));
+        const r = await sendResetEmail(email);
+        if (!r.ok) return setMsg(friendly(r.error));
         return setSent(true);
       }
       const res =

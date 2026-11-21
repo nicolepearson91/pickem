@@ -1,0 +1,75 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { createClient as plain } from "@supabase/supabase-js";
+import { requireMember } from "@/lib/auth";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { cleanName, nameKey, pinPassword, validName, validPin } from "@/lib/pin";
+
+type Result = { ok: true } | { ok: false; error: string };
+
+/** Checks a password without touching the browser's session. */
+async function passwordWorks(email: string, password: string) {
+  const sb = plain(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  const { error } = await sb.auth.signInWithPassword({ email, password });
+  return !error;
+}
+
+export async function rename(formData: FormData): Promise<Result> {
+  const { supabase, user } = await requireMember();
+  const name = cleanName(String(formData.get("name") || ""));
+  if (!name) return { ok: false, error: "Enter a name." };
+  const db = createAdminClient();
+  const { data: login } = await db.from("pin_logins").select("name_key").eq("user_id", user.id).maybeSingle();
+  if (login) {
+    // Name + PIN players sign in with this name, so it must stay valid and unique.
+    if (!validName(name)) return { ok: false, error: "Use 2 to 24 letters, numbers or spaces." };
+    const key = nameKey(name);
+    if (key !== login.name_key) {
+      const [{ data: taken }, { data: same }] = await Promise.all([
+        db.from("pin_logins").select("user_id").eq("name_key", key).maybeSingle(),
+        db.from("profiles").select("id").ilike("display_name", name.replace(/[%_\\]/g, "\\$&")).neq("id", user.id).limit(1),
+      ]);
+      if (taken || (same && same.length)) return { ok: false, error: `Someone is already called "${name}".` };
+      const { error } = await db.from("pin_logins").update({ name_key: key }).eq("user_id", user.id);
+      if (error) return { ok: false, error: `Someone is already called "${name}".` };
+    }
+  }
+  await supabase.from("profiles").update({ display_name: name }).eq("id", user.id);
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+export async function changePassword(current: string, next: string): Promise<Result> {
+  const { supabase, user } = await requireMember();
+  if (next.length < 6) return { ok: false, error: "Use at least 6 characters." };
+  const { data: login } = await createAdminClient().from("pin_logins").select("name_key").eq("user_id", user.id).maybeSingle();
+  if (login) return { ok: false, error: "You sign in with a PIN. Change your PIN instead." };
+  const hasPassword = ((user.app_metadata?.providers as string[] | undefined) ?? []).includes("email");
+  if (hasPassword && !(await passwordWorks(user.email!, current))) {
+    return { ok: false, error: "Your current password isn't right. If you forgot it, sign out and use Forgot password." };
+  }
+  const { error } = await createAdminClient().auth.admin.updateUserById(user.id, { password: next });
+  if (error) return { ok: false, error: error.message };
+  // Changing the password ends the old session, so sign this device straight back in.
+  await supabase.auth.signInWithPassword({ email: user.email!, password: next });
+  return { ok: true };
+}
+
+export async function changePin(current: string, next: string): Promise<Result> {
+  const { supabase, user } = await requireMember();
+  if (!validPin(next)) return { ok: false, error: "Your new PIN must be exactly 4 digits." };
+  const db = createAdminClient();
+  const { data: login } = await db.from("pin_logins").select("name_key").eq("user_id", user.id).maybeSingle();
+  if (!login) return { ok: false, error: "You sign in with email, not a PIN." };
+  if (!validPin(current) || !(await passwordWorks(user.email!, pinPassword(user.id, current)))) {
+    return { ok: false, error: "Your current PIN isn't right. If you forgot it, ask the pool admin to reset it." };
+  }
+  const { error } = await db.auth.admin.updateUserById(user.id, { password: pinPassword(user.id, next) });
+  if (error) return { ok: false, error: error.message };
+  // Changing the PIN ends the old session, so sign this device straight back in.
+  await supabase.auth.signInWithPassword({ email: user.email!, password: pinPassword(user.id, next) });
+  return { ok: true };
+}

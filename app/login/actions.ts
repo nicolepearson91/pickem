@@ -91,3 +91,25 @@ export async function joinWithPin(rawName: string, pin: string, code: string): P
   if (error) return { ok: false, error: "Your account was made, but signing in failed. Try signing in with your name and PIN." };
   return { ok: true };
 }
+
+/**
+ * Sends the "reset your password" email. The link carries the sign-in itself, so it works
+ * even when opened on a different phone or computer from the one that asked for it.
+ */
+export async function sendResetEmail(email: string): Promise<Result> {
+  const { createClient: plain } = await import("@supabase/supabase-js");
+  const { headers } = await import("next/headers");
+  const h = await headers();
+  const origin = `${h.get("x-forwarded-proto") ?? "https"}://${h.get("x-forwarded-host") ?? h.get("host")}`;
+  const sb = plain(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
+    auth: { flowType: "implicit", persistSession: false, autoRefreshToken: false },
+  });
+  const { error } = await sb.auth.resetPasswordForEmail(email.trim(), { redirectTo: `${origin}/reset-password` });
+  if (error) {
+    if (/rate limit|too many|seconds/i.test(error.message)) {
+      return { ok: false, error: "Too many emails were sent recently. Wait a minute, or ask the pool admin for a reset link." };
+    }
+    return { ok: false, error: error.message };
+  }
+  return { ok: true };
+}
