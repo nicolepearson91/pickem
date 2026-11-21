@@ -1,7 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-const PUBLIC = ["/login", "/auth", "/reset-password", "/opengraph-image", "/api/sync-scores", "/manifest.webmanifest"];
+const PUBLIC = ["/login", "/auth", "/reset-password", "/opengraph-image", "/sw.js", "/api/sync-scores", "/manifest.webmanifest"];
 
 // The one address everyone should use. Vercel also serves each deploy at its own long address
 // (pickem-abc123-….vercel.app); sign-ins are tied to the address, so those would look signed out.

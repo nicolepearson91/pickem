@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { cashAppLink, METHOD_LABEL, money, venmoLink } from "@/lib/payments";
 import type { AppSettings, Contest, Payment, PayMethod } from "@/lib/types";
 import { useRouter } from "next/navigation";
+import { notifyPaymentClaimed } from "@/app/notifications/actions";
 
 export default function PaymentPanel({ contest, userId, settings, payment, adminName }: {
   contest: Contest; userId: string; settings: AppSettings; payment?: Payment; adminName?: string;
@@ -41,6 +42,8 @@ export default function PaymentPanel({ contest, userId, settings, payment, admin
     );
     setBusy(false);
     if (error) setErr("Couldn't save that. Try again.");
+    // Ping the admin's phone. Never let a notification problem get in the player's way.
+    else notifyPaymentClaimed(contest.id).catch(() => {});
     router.refresh();
   }
 

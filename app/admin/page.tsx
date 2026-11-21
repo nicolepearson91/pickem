@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { requireAdmin } from "@/lib/auth";
 import { newInviteCode, removePayment, saveSettings, setMember, setPlayersCanInvite, verifyPayment } from "./actions";
 import InviteFriendsButton from "@/components/InviteFriendsButton";
+import PushToggle from "@/components/PushToggle";
 import { inviteLink } from "@/lib/invite";
 import { METHOD_LABEL, money } from "@/lib/payments";
 import CopyButton from "@/components/CopyButton";
@@ -56,6 +57,8 @@ export default async function AdminPage() {
   const h = await headers();
   const origin = `${h.get("x-forwarded-proto") ?? "https"}://${h.get("host")}`;
   const shared = await inviteLink(true);
+  // Notifications need the push setup SQL; until it's run this lookup errors.
+  const { error: pushErr } = await service.from("push_subscriptions").select("endpoint").limit(1);
   const link = shared.link ?? `${origin}/join?code=${invite?.code ?? ""}`;
 
   return (
@@ -94,6 +97,12 @@ export default async function AdminPage() {
             </ul>
           </>
         )}
+      </section>
+
+      <section className="card space-y-2">
+        <h2 className="text-lg font-bold">Payment alerts</h2>
+        <p className="text-sm text-slate-500">Get a notification on your phone whenever a player taps &quot;I paid&quot;. Turn it on separately on each phone or computer.</p>
+        <PushToggle ready={!pushErr} />
       </section>
 
       <section className="card space-y-3">
