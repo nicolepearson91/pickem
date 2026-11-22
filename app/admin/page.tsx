@@ -13,6 +13,8 @@ import PlayerTools from "@/components/PlayerTools";
 import { looksAlike } from "@/lib/similar";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { AppSettings, Contest, Payment, Profile } from "@/lib/types";
+import type { SquaresBoard, SquaresPayment } from "@/lib/squares";
+import { confirmSquaresPayment, rejectSquaresPayment } from "./squares/actions";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +27,20 @@ export default async function AdminPage() {
     supabase.from("profiles").select("id, display_name, is_admin, is_member, created_at").order("display_name"),
     supabase.from("payments").select("*"),
   ]);
+  // Squares tables come from the squares SQL; until it's run these come back empty.
+  const [{ data: boardRows, error: boardsErr }, { data: sqPayRows }, { data: sqRows }] = await Promise.all([
+    supabase.from("squares_boards").select("*").order("created_at", { ascending: false }),
+    supabase.from("squares_payments").select("*").eq("status", "pending"),
+    supabase.from("squares").select("board_id"),
+  ]);
+  const boards = (boardRows ?? []) as SquaresBoard[];
+  const boardBy = new Map(boards.map((b) => [b.id, b]));
+  const sqWaiting = ((sqPayRows ?? []) as SquaresPayment[]).filter((p) => boardBy.has(p.board_id) && p.squares > p.verified_squares)
+    .sort((a, b) => a.submitted_at.localeCompare(b.submitted_at));
+  const sqPendingBy = new Map<number, number>();
+  sqWaiting.forEach((p) => sqPendingBy.set(p.board_id, (sqPendingBy.get(p.board_id) ?? 0) + 1));
+  const takenBy = new Map<number, number>();
+  (sqRows ?? []).forEach((r) => takenBy.set(r.board_id, (takenBy.get(r.board_id) ?? 0) + 1));
   const allPays = (pays ?? []) as Payment[];
   const contestBy = new Map(((contests ?? []) as Contest[]).map((c) => [c.id, c]));
   const nameBy = new Map(((people ?? []) as Profile[]).map((p) => [p.id, p.display_name]));
@@ -69,8 +85,8 @@ export default async function AdminPage() {
       </div>
 
       <section className={`card space-y-3 ${waiting.length ? "border-amber-400" : ""}`}>
-        <h2 className="text-lg font-bold">Payments to confirm{waiting.length > 0 && <span className="ml-2 rounded-full bg-amber-400 px-2 py-0.5 text-sm text-slate-900">{waiting.length}</span>}</h2>
-        {waiting.length === 0 ? (
+        <h2 className="text-lg font-bold">Payments to confirm{waiting.length + sqWaiting.length > 0 && <span className="ml-2 rounded-full bg-amber-400 px-2 py-0.5 text-sm text-slate-900">{waiting.length + sqWaiting.length}</span>}</h2>
+        {waiting.length + sqWaiting.length === 0 ? (
           <p className="text-sm text-slate-500">
             Nothing waiting. When a player taps &quot;I paid&quot;, it shows up here for you to confirm. To mark someone who paid
             you in person, tap <strong>Payments</strong> next to the pick em below.
@@ -90,6 +106,22 @@ export default async function AdminPage() {
                     <span className="flex gap-2">
                       <form action={verifyPayment.bind(null, p.contest_id, p.user_id, true)}><button className="btn-primary">Confirm received</button></form>
                       <form action={removePayment.bind(null, p.contest_id, p.user_id)}><button className="btn-danger">Not received</button></form>
+                    </span>
+                  </li>
+                );
+              })}
+              {sqWaiting.map((p) => {
+                const b = boardBy.get(p.board_id)!;
+                const n = p.squares - p.verified_squares;
+                return (
+                  <li key={`sq:${p.board_id}:${p.user_id}`} className="flex flex-wrap items-center justify-between gap-2 py-2.5 text-sm">
+                    <span>
+                      <span className="font-semibold">{nameBy.get(p.user_id) ?? "Someone"}</span>
+                      <span className="text-slate-400"> says they sent {money(n * Number(b.price))} by {METHOD_LABEL[p.method]} for {n} square{n === 1 ? "" : "s"} · {b.name}</span>
+                    </span>
+                    <span className="flex gap-2">
+                      <form action={confirmSquaresPayment.bind(null, p.board_id, p.user_id)}><button className="btn-primary">Confirm received</button></form>
+                      <form action={rejectSquaresPayment.bind(null, p.board_id, p.user_id)}><button className="btn-danger">Not received</button></form>
                     </span>
                   </li>
                 );
@@ -146,6 +178,33 @@ export default async function AdminPage() {
             </li>
           ))}
         </ul>
+      </section>
+
+      <section className="card space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-lg font-bold">Squares boards</h2>
+          {!boardsErr && <Link href="/admin/squares/new" className="btn-ghost">+ New squares board</Link>}
+        </div>
+        {boardsErr ? (
+          <p className="text-sm text-amber-300">Super Bowl squares need a one-time setup: run the squares SQL in Supabase.</p>
+        ) : boards.length === 0 ? <p className="text-sm text-slate-500">None yet.</p> : (
+          <ul className="divide-y divide-slate-100 dark:divide-slate-800">
+            {boards.map((b) => (
+              <li key={b.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
+                <span>
+                  <span className="font-semibold">{b.name}</span>{" "}
+                  <span className="text-sm text-slate-500">· {money(Number(b.price))} a square · {takenBy.get(b.id) ?? 0}/100 taken · {b.col_digits ? "numbers drawn" : "numbers not drawn"} · {b.status}</span>
+                </span>
+                <span className="flex gap-2">
+                  <Link className="btn-ghost" href={`/squares/${b.id}`}>View</Link>
+                  <Link className={sqPendingBy.get(b.id) ? "btn-primary" : "btn-ghost"} href={`/admin/squares/${b.id}`}>
+                    Manage{sqPendingBy.get(b.id) ? ` (${sqPendingBy.get(b.id)} to confirm)` : ""}
+                  </Link>
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
 
       <section className="card space-y-3">

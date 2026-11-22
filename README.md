@@ -26,6 +26,18 @@ PINs are never stored. The server turns each PIN into a long password using a se
 
 Each pick em shows its pot: the entry fee times the payments the admin has confirmed. Payments players have marked as sent but that aren't confirmed yet show separately as pending. The Season page shows the total pot for the season.
 
+## Super Bowl squares
+
+Under **Squares**, players claim boxes on a 10 by 10 board. The admin makes boards from **Admin > Squares boards > New squares board** (type several prices like `5, 10, 20` to make one board per price), and can change the name, price, most squares per person (empty means no limit) and the payout split at any time.
+
+- When the 100th square is claimed, the numbers 0 to 9 are drawn at random across the top (home team) and down the side (away team), and the board locks. The admin can also draw early, and can clear the numbers before kickoff.
+- The last digit of each team's score at the end of the 1st quarter, halftime, the 3rd quarter and the final picks the winning square. Default split: 20%, 20%, 20%, 40%.
+- If a winning square is empty, its prize rolls to the next quarter. If the final square is empty, it's shared by the earlier winners.
+- Link the game from the board's Admin page once ESPN lists it (for the Super Bowl: NFL, Playoffs, week 5). Scores then fill in live. The admin can also type the quarter scores by hand.
+- Players pay per square and tap "I sent it"; payments show in **Payments to confirm** like pick em entries. The pot counts confirmed squares only.
+
+Setup: run `supabase/migrations/20261122010000_squares.sql` once in the Supabase SQL Editor.
+
 ## Rules
 
 - 1 point per correct pick. Tied games count for nobody.

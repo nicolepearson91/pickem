@@ -50,6 +50,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               <div className="hidden items-center gap-1 sm:flex">
                 <NavLink href="/">This week</NavLink>
                 <NavLink href="/standings">Season</NavLink>
+                <NavLink href="/squares">Squares</NavLink>
                 {profile.is_admin && <NavLink href="/admin">Admin</NavLink>}
               </div>
             )}
@@ -64,6 +65,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             <div className="flex gap-1 border-t border-slate-800/60 px-3 py-1.5 sm:hidden">
               <NavLink href="/">This week</NavLink>
               <NavLink href="/standings">Season</NavLink>
+              <NavLink href="/squares">Squares</NavLink>
               {profile.is_admin && <NavLink href="/admin">Admin</NavLink>}
             </div>
           )}
