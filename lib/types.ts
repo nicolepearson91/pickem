@@ -24,6 +24,8 @@ export interface Contest {
   created_at: string;
   /** Percent of the pot for 2nd place; 0 = winner takes all. Missing until the payouts SQL is run. */
   second_place_pct?: number;
+  /** Every pick locks when the first game kicks off. Missing until that SQL is run. */
+  lock_at_first_kickoff?: boolean;
 }
 
 export interface Payout {

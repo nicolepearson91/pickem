@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireAdmin } from "@/lib/auth";
-import { deleteContest, recordPayment, removePayment, setContestStatus, setEntryFee, setSplit, verifyPayment } from "../../actions";
+import { deleteContest, recordPayment, removePayment, setContestStatus, setEntryFee, setLockAtFirstKickoff, setSplit, verifyPayment } from "../../actions";
 import { METHOD_LABEL, money } from "@/lib/payments";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Contest, Payment, PayMethod, Profile } from "@/lib/types";
@@ -45,6 +45,21 @@ export default async function AdminContestPage({ params }: { params: Promise<{ i
         </div>
         <button className="btn-ghost">Save fee</button>
         <p className="w-full text-xs text-slate-500">Set to 0 for a free pick em. With a fee, players see your Venmo, Cash App and Apple Cash and can tap &quot;I paid&quot;.</p>
+      </form>
+
+      <form action={setLockAtFirstKickoff.bind(null, cid, !contest.lock_at_first_kickoff)} className="card flex flex-wrap items-center gap-3">
+        <div className="mr-auto">
+          <h2 className="font-bold">When picks lock</h2>
+          <p className="text-sm text-slate-500">
+            {contest.lock_at_first_kickoff
+              ? "Every pick locks when the first game kicks off."
+              : "Each game locks at its own kickoff, so players can still pick later games."}
+          </p>
+          {contest.lock_at_first_kickoff === undefined && <p className="text-xs text-amber-300">Run the lock-at-first-kickoff SQL in Supabase to change this.</p>}
+        </div>
+        <button className="btn-ghost" disabled={contest.lock_at_first_kickoff === undefined}>
+          {contest.lock_at_first_kickoff ? "Switch to each game at its kickoff" : "Lock everything at first kickoff"}
+        </button>
       </form>
 
       <form action={setSplit.bind(null, cid)} className="card flex flex-wrap items-end gap-3">

@@ -299,3 +299,10 @@ export async function setPlayersCanInvite(on: boolean) {
   revalidatePath("/admin");
   revalidatePath("/");
 }
+
+export async function setLockAtFirstKickoff(id: number, on: boolean) {
+  const { supabase } = await requireAdmin();
+  await supabase.from("contests").update({ lock_at_first_kickoff: on }).eq("id", id);
+  revalidatePath(`/admin/contests/${id}`);
+  revalidatePath(`/contests/${id}`);
+}

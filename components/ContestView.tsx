@@ -27,8 +27,10 @@ interface Props {
   payoutInfo: PayoutInfo[];
 }
 
-export const isLocked = (g: Game, c: Contest) =>
-  c.status !== "open" || g.state !== "pre" || new Date(g.kickoff).getTime() <= Date.now();
+/** weekStarted: some game in this pick em has kicked off (matters when it locks at first kickoff). */
+export const isLocked = (g: Game, c: Contest, weekStarted = false) =>
+  c.status !== "open" || g.state !== "pre" || new Date(g.kickoff).getTime() <= Date.now()
+  || (!!c.lock_at_first_kickoff && weekStarted);
 
 export default function ContestView(p: Props) {
   const { contest, games, userId } = p;
@@ -59,7 +61,7 @@ export default function ContestView(p: Props) {
   );
 
   async function choose(g: Game, side: Side) {
-    if (isLocked(g, contest)) return;
+    if (isLocked(g, contest, started)) return;
     const prev = mine[g.id];
     setMine((m) => ({ ...m, [g.id]: side }));
     setError(null);
@@ -94,6 +96,11 @@ export default function ContestView(p: Props) {
         </p>
         <h1 className="mt-1 text-4xl font-bold leading-none text-white sm:text-5xl">{contest.name}</h1>
         <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
+          {contest.lock_at_first_kickoff && games.length > 0 && contest.status === "open" && (
+            <span className={`rounded-full px-3 py-1 text-xs font-bold ${started ? "bg-slate-700 text-slate-200" : "bg-amber-400 text-slate-900"}`}>
+              {started ? "🔒 All picks locked" : <>⏰ All picks lock at <LocalTime iso={[...games].sort((a, b) => a.kickoff.localeCompare(b.kickoff))[0].kickoff} /></>}
+            </span>
+          )}
           {live && (
             <span className="inline-flex items-center gap-1.5 rounded-full bg-red-600 px-3 py-1 text-xs font-bold text-white">
               <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" /> LIVE
@@ -147,7 +154,7 @@ export default function ContestView(p: Props) {
         <div className="space-y-3">
           <div className="grid gap-3 md:grid-cols-2">
             {games.map((g) => (
-              <GameCard key={g.id} g={g} locked={isLocked(g, contest)} pick={mine[g.id]} onPick={(s) => choose(g, s)}
+              <GameCard key={g.id} g={g} locked={isLocked(g, contest, started)} pick={mine[g.id]} onPick={(s) => choose(g, s)}
                 isTiebreaker={g.id === contest.tiebreaker_game_id} />
             ))}
           </div>
@@ -271,7 +278,8 @@ function Board({ games, picks, standings, userId, contest, payments, tiebreakers
   const hasFee = Number(contest.entry_fee) > 0;
   const tbGame = games.find((g) => g.id === contest.tiebreaker_game_id);
   const tbShown = tiebreakers.length > 0;
-  const anyOpen = games.some((g) => !isLocked(g, contest));
+  const started = games.some((g) => g.state !== "pre" || new Date(g.kickoff).getTime() <= Date.now());
+  const anyOpen = games.some((g) => !isLocked(g, contest, started));
 
   return (
     <div className="space-y-5">
@@ -331,7 +339,7 @@ function Board({ games, picks, standings, userId, contest, payments, tiebreakers
                 </td>
                 {games.map((g) => {
                   const side = pickMap.get(`${r.user_id}:${g.id}`);
-                  const hidden = !side && r.user_id !== userId && isLocked(g, contest) === false;
+                  const hidden = !side && r.user_id !== userId && isLocked(g, contest, started) === false;
                   const abbr = side === "home" ? g.home_abbr : side === "away" ? g.away_abbr : null;
                   const cls = !side ? "text-slate-600"
                     : g.state === "post" && g.winner ? (g.winner === side ? "bg-emerald-950 text-emerald-400" : "bg-red-950 text-red-400 line-through")
