@@ -44,8 +44,41 @@ function events(rows, prefix) {
     };
   });
 }
+// Super Bowl (NFL playoffs week 5): moves forward one step each time it's fetched, with quarter line scores.
+const sbSteps = [
+  { st: "pre", period: 0, name: "STATUS_SCHEDULED", a: [], h: [] },
+  { st: "in", period: 1, name: "STATUS_IN_PROGRESS", a: [3], h: [0] },
+  { st: "in", period: 1, name: "STATUS_END_PERIOD", a: [3], h: [7] },
+  { st: "in", period: 2, name: "STATUS_HALFTIME", a: [3, 6], h: [7, 7] },
+  { st: "in", period: 3, name: "STATUS_IN_PROGRESS", a: [3, 6, 3], h: [7, 7, 0] },
+  { st: "in", period: 4, name: "STATUS_IN_PROGRESS", a: [3, 6, 3, 7], h: [7, 7, 0, 3] },
+  { st: "post", period: 4, name: "STATUS_FINAL", a: [3, 6, 3, 7], h: [7, 7, 0, 3] },
+];
+let sbFetches = 0;
+let sbFixed = null; // GET /sb-step/N holds the Super Bowl at step N, for tests.
+function superBowl() {
+  const s = sbSteps[sbFixed ?? Math.min(sbSteps.length - 1, Math.floor(sbFetches++ / 2))];
+  const sum = (x) => x.reduce((t, v) => t + v, 0);
+  const comp = (side, nm, ab, ls, color) => ({
+    homeAway: side, score: String(sum(ls)), winner: s.st === "post" ? (side === "home" ? sum(s.h) > sum(s.a) : sum(s.a) > sum(s.h)) : undefined,
+    team: { displayName: nm, abbreviation: ab, logo: null, color }, linescores: ls.map((value, i) => ({ value, period: i + 1 })),
+  });
+  return [{
+    id: "sb1", date: new Date(now + (s.st === "pre" ? 3 * H : -H)).toISOString(),
+    competitions: [{
+      status: { period: s.period, type: { name: s.name, state: s.st, completed: s.st === "post", shortDetail: s.st === "post" ? "Final" : s.st === "in" ? `Q${s.period}` : "Feb 14" } },
+      competitors: [comp("home", "New England Patriots", "NE", s.h, "002244"), comp("away", "Seattle Seahawks", "SEA", s.a, "002a5c")],
+    }],
+  }];
+}
+
 http.createServer((req, res) => {
   const isCfb = req.url.includes("college-football");
   res.setHeader("content-type", "application/json");
+  const step = /^\/sb-step\/(\d+)/.exec(req.url);
+  if (step) { sbFixed = Math.min(sbSteps.length - 1, Number(step[1])); return res.end(JSON.stringify({ step: sbFixed })); }
+  if (!isCfb && req.url.includes("seasontype=3") && req.url.includes("week=5")) {
+    return res.end(JSON.stringify({ events: superBowl() }));
+  }
   res.end(JSON.stringify({ events: isCfb ? events(cfb, "c") : events(nfl, "n") }));
 }).listen(4010, "127.0.0.1", () => console.log("mock ESPN on http://127.0.0.1:4010"));

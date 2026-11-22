@@ -25,6 +25,8 @@ export interface EspnTeam {
   score: number | null;
   /** Hex like "#e31837", when ESPN has one. */
   color: string | null;
+  /** Points scored in each quarter (overtime after that), as far as the game has gone. */
+  linescores: number[];
 }
 
 export interface EspnGame {
@@ -35,6 +37,10 @@ export interface EspnGame {
   state: GameState;
   status_detail: string;
   winner: Side | "tie" | null;
+  /** Current quarter (5+ is overtime), 0 before kickoff. */
+  period: number;
+  /** How many quarters are over: 2 at halftime, 4 once the game is final. */
+  periodsDone: number;
 }
 
 export function scoreboardUrl(opts: {
@@ -68,6 +74,9 @@ function team(c: any): EspnTeam {
     rank: typeof rank === "number" && rank > 0 && rank <= 25 ? rank : null,
     score: Number.isFinite(score) ? score : null,
     color: /^[0-9a-f]{6}$/i.test(c?.team?.color ?? "") ? `#${c.team.color}` : null,
+    linescores: (Array.isArray(c?.linescores) ? c.linescores : [])
+      .map((l: any) => Number(l?.value ?? l?.displayValue))
+      .map((n: number) => (Number.isFinite(n) ? n : 0)),
   };
 }
 
@@ -94,6 +103,11 @@ export function parseScoreboard(json: any): EspnGame[] {
         winner = home.score > away.score ? "home" : away.score > home.score ? "away" : "tie";
       }
     }
+    const period = Number(comp?.status?.period ?? e?.status?.period) || 0;
+    const name = String(st.name ?? "");
+    const periodsDone = state === "post" ? (st.completed === false ? 0 : 4)
+      : state === "in" ? Math.min(4, /HALFTIME|END_PERIOD/.test(name) ? period : Math.max(0, period - 1))
+      : 0;
     out.push({
       espn_id: String(e.id),
       kickoff: new Date(e.date ?? comp?.date).toISOString(),
@@ -102,6 +116,8 @@ export function parseScoreboard(json: any): EspnGame[] {
       state,
       status_detail: st.shortDetail ?? st.detail ?? st.description ?? "",
       winner,
+      period,
+      periodsDone,
     });
   }
   return out.sort((x, y) => x.kickoff.localeCompare(y.kickoff));

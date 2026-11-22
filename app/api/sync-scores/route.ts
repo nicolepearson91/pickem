@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { fetchScoreboard, gameColumns } from "@/lib/espn";
 import type { Contest, Game } from "@/lib/types";
+import { boardGameColumns, type SquaresBoard } from "@/lib/squares";
 
 export const dynamic = "force-dynamic";
 
@@ -70,7 +71,49 @@ async function sync(request: NextRequest) {
       if (!upErr) updated++;
     }
   }
+  updated += await syncBoards(db, forced);
   return NextResponse.json({ ok: true, updated });
+}
+
+// Squares boards linked to an ESPN game: live score, plus the score at the end of each quarter.
+// Missing table (squares SQL not run yet) just means nothing to do.
+async function syncBoards(db: ReturnType<typeof createAdminClient>, forced: boolean) {
+  const { data: boards } = await db.from("squares_boards")
+    .select("id, league, season, season_type, week, espn_group, espn_id, kickoff, state, home_score, away_score, period, status_detail, home_abbr, away_abbr, marks, manual_scores")
+    .eq("status", "open").not("espn_id", "is", null);
+  let updated = 0;
+  const now = Date.now();
+  const cache = new Map<string, Awaited<ReturnType<typeof fetchScoreboard>>>();
+  for (const b of (boards ?? []) as SquaresBoard[]) {
+    if (b.state === "post" && Array.isArray(b.marks) && b.marks[3]) continue;
+    const k = b.kickoff ? new Date(b.kickoff).getTime() : 0;
+    // Before kickoff, check now and then so the matchup (team names) fills in once it's set.
+    const active = b.state === "in" || (b.kickoff && k - now < 15 * 60_000) || b.state === "post";
+    if (!active && !forced && !(b.home_abbr === "TBD" || b.away_abbr === "TBD")) continue;
+    if (!b.season || !b.season_type || !b.week) continue;
+    const key = `${b.league}:${b.season}:${b.season_type}:${b.week}:${b.espn_group ?? ""}`;
+    let live = cache.get(key);
+    if (!live) {
+      try {
+        live = await fetchScoreboard({ league: b.league, season: b.season, seasonType: b.season_type, week: b.week, group: b.espn_group });
+        cache.set(key, live);
+      } catch (e) {
+        console.error(`sync board ${b.id}:`, e);
+        continue;
+      }
+    }
+    const fresh = live.find((g) => g.espn_id === b.espn_id);
+    if (!fresh) continue;
+    const cols = boardGameColumns(fresh, b.manual_scores);
+    const changed = cols.state !== b.state || cols.home_score !== b.home_score || cols.away_score !== b.away_score ||
+      cols.status_detail !== b.status_detail || cols.period !== b.period || cols.home_abbr !== b.home_abbr || cols.away_abbr !== b.away_abbr ||
+      ("marks" in cols && JSON.stringify(cols.marks) !== JSON.stringify(b.marks)) ||
+      (b.kickoff && new Date(cols.kickoff).getTime() !== new Date(b.kickoff).getTime());
+    if (!changed) continue;
+    const { error } = await db.from("squares_boards").update(cols).eq("id", b.id);
+    if (!error) updated++;
+  }
+  return updated;
 }
 
 export const GET = sync;

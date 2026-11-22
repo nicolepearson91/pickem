@@ -51,3 +51,20 @@ export async function notifyPaymentClaimed(contestId: number): Promise<void> {
     tag: `pay-${contestId}-${user.id}`,
   });
 }
+
+/** Same as above, for a Super Bowl squares board. */
+export async function notifySquaresPaymentClaimed(boardId: number): Promise<void> {
+  const { supabase, user, profile } = await requireMember();
+  const { data: pay } = await supabase.from("squares_payments").select("method, status, squares, verified_squares")
+    .eq("board_id", boardId).eq("user_id", user.id).maybeSingle<{ method: PayMethod; status: string; squares: number; verified_squares: number }>();
+  if (!pay || pay.status !== "pending") return;
+  const { data: b } = await supabase.from("squares_boards").select("name, price").eq("id", boardId).maybeSingle();
+  const n = Math.max(0, pay.squares - pay.verified_squares);
+  const admins = (await adminIds()).filter((id) => id !== user.id);
+  await sendPush(admins, {
+    title: `💵 ${profile.display_name} says they paid`,
+    body: `${money(n * Number(b?.price ?? 0))} by ${METHOD_LABEL[pay.method]} for ${n} square${n === 1 ? "" : "s"} on ${b?.name ?? "a squares board"}. Tap to confirm.`,
+    url: "/admin",
+    tag: `sq-${boardId}-${user.id}`,
+  });
+}

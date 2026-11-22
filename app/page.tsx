@@ -27,6 +27,9 @@ export default async function Home() {
     potTotals((allPays ?? []).filter((x) => x.contest_id === c.id), Number(c.entry_fee)).pot]));
 
   const { link: invite } = await inviteLink(profile.is_admin);
+  // Open squares boards (empty until the squares SQL is run).
+  const { data: boardRows } = await supabase.from("squares_boards").select("id, name, price").eq("status", "open").order("price");
+  const boards = (boardRows ?? []) as { id: number; name: string; price: number }[];
 
   const open = list.filter((c) => c.status === "open");
   const closed = list.filter((c) => c.status === "closed");
@@ -43,6 +46,16 @@ export default async function Home() {
           {profile.is_admin && <Link href="/admin/new" className="btn-primary">+ New pick em</Link>}
         </div>
       </div>
+
+      {boards.length > 0 && (
+        <Link href="/squares" className="card flex flex-wrap items-center justify-between gap-3 border-amber-400/60 transition hover:border-amber-300">
+          <span>
+            <span className="block font-display text-xl font-bold uppercase text-amber-300">🏈 Squares are open</span>
+            <span className="text-sm text-slate-400">{boards.length === 1 ? boards[0].name : `${boards.length} boards: ${boards.map((b) => money(Number(b.price))).join(", ")} a square`}</span>
+          </span>
+          <span className="btn-primary">Pick your squares</span>
+        </Link>
+      )}
 
       {open.length === 0 && (
         <div className="card text-slate-500">
