@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 
 const THROTTLE_MS = 45_000;
 
-// Pulls live scores from ESPN for every open contest that still has unfinished games.
+// Pulls live scores from ESPN for every contest that still has unfinished games.
 // The every-minute job calls it with the secret. Open dashboards also ping it while
 // games are live, throttled so ESPN is hit at most about once a minute.
 async function sync(request: NextRequest) {
@@ -23,11 +23,12 @@ async function sync(request: NextRequest) {
 
   const { data: contests, error } = await db
     .from("contests")
-    .select("id, league, season, season_type, week, espn_group, games!games_contest_id_fkey(id, espn_id, kickoff, state, home_score, away_score, status_detail, winner)")
-    .eq("status", "open");
+    .select("id, league, season, season_type, week, espn_group, games!games_contest_id_fkey(id, espn_id, kickoff, state, home_score, away_score, status_detail, winner)");
+  // Closed pick ems still get live scores: closing only stops picks. Finished weeks are skipped below.
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  let updated = 0;
+  let updated = 0, checked = 0;
+  const failures: string[] = [];
   const now = Date.now();
   for (const c of (contests ?? []) as (Contest & { games: Game[] })[]) {
     const unfinished = c.games.filter((g) => g.state !== "post");
@@ -47,8 +48,10 @@ async function sync(request: NextRequest) {
       });
     } catch (e) {
       console.error(`sync contest ${c.id}:`, e);
+      failures.push(`contest ${c.id}: ${(e as Error).message}`);
       continue;
     }
+    checked++;
     const byId = new Map(live.map((g) => [g.espn_id, g]));
     for (const g of c.games) {
       const fresh = byId.get(g.espn_id);
@@ -68,9 +71,10 @@ async function sync(request: NextRequest) {
       };
       const { error: upErr } = await db.from("games").update(patch).eq("id", g.id);
       if (!upErr) updated++;
+      else failures.push(`game ${g.id}: ${upErr.message}`);
     }
   }
-  return NextResponse.json({ ok: true, updated });
+  return NextResponse.json({ ok: failures.length === 0, checked, updated, ...(failures.length ? { failures } : {}) });
 }
 
 export const GET = sync;

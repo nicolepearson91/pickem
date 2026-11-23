@@ -136,7 +136,7 @@ export default async function AdminContestPage({ params }: { params: Promise<{ i
       <section className="card flex flex-wrap items-center gap-3">
         <h2 className="mr-auto text-lg font-bold">Status: {contest.status === "open" ? "Open" : "Closed"}</h2>
         <form action={setContestStatus.bind(null, cid, contest.status === "open" ? "closed" : "open")}>
-          <button className="btn-ghost">{contest.status === "open" ? "Close (stop picks and score updates)" : "Reopen"}</button>
+          <button className="btn-ghost">{contest.status === "open" ? "Close (stop picks; scores keep updating)" : "Reopen"}</button>
         </form>
         <details className="relative">
           <summary className="btn-danger list-none">Delete pick em</summary>
