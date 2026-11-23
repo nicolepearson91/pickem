@@ -83,6 +83,14 @@ export async function createContest(input: NewContestInput): Promise<{ error?: s
   const tb = rows?.find((r) => r.espn_id === input.tiebreakerEspnId);
   if (tb) await supabase.from("contests").update({ tiebreaker_game_id: tb.id }).eq("id", contest.id);
 
+  // Let players know. Never let a notification problem stop the pick em from being created.
+  try {
+    const { sendNewWeek } = await import("@/lib/push");
+    await sendNewWeek(contest.id);
+  } catch (e) {
+    console.error("new week alert:", e);
+  }
+
   revalidatePath("/");
   redirect(`/contests/${contest.id}`);
 }

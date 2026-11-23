@@ -4,6 +4,8 @@ import type { Contest, Game, Payment, Pick as PickRow } from "@/lib/types";
 import { METHOD_LABEL, money, potTotals } from "@/lib/payments";
 import InviteFriendsButton from "@/components/InviteFriendsButton";
 import { inviteLink } from "@/lib/invite";
+import PushToggle from "@/components/PushToggle";
+import { pushReady } from "@/lib/push";
 
 export const dynamic = "force-dynamic";
 
@@ -26,7 +28,7 @@ export default async function Home() {
   const potBy = new Map(list.map((c) => [c.id,
     potTotals((allPays ?? []).filter((x) => x.contest_id === c.id), Number(c.entry_fee)).pot]));
 
-  const { link: invite } = await inviteLink(profile.is_admin);
+  const [{ link: invite }, canPush] = await Promise.all([inviteLink(profile.is_admin), pushReady()]);
 
   const open = list.filter((c) => c.status === "open");
   const closed = list.filter((c) => c.status === "closed");
@@ -43,6 +45,8 @@ export default async function Home() {
           {profile.is_admin && <Link href="/admin/new" className="btn-primary">+ New pick em</Link>}
         </div>
       </div>
+
+      {!profile.is_admin && <PushToggle ready={canPush} forAdmin={false} banner />}
 
       {open.length === 0 && (
         <div className="card text-slate-500">

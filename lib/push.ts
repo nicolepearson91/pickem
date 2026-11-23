@@ -48,3 +48,29 @@ export async function adminIds(): Promise<string[]> {
   const { data } = await createAdminClient().from("profiles").select("id").eq("is_admin", true);
   return (data ?? []).map((p) => p.id);
 }
+
+/** "New pick em is up!" to every player in the pool except admins. */
+export async function sendNewWeek(contestId: number): Promise<number> {
+  const db = createAdminClient();
+  const [{ data: c }, { data: players }, { data: games }] = await Promise.all([
+    db.from("contests").select("name").eq("id", contestId).maybeSingle(),
+    db.from("profiles").select("id").eq("is_member", true).eq("is_admin", false),
+    db.from("games").select("kickoff").eq("contest_id", contestId).order("kickoff").limit(1),
+  ]);
+  if (!c) return 0;
+  const first = games?.[0]?.kickoff
+    ? new Date(games[0].kickoff).toLocaleString("en-US", { weekday: "short", hour: "numeric", minute: "2-digit", timeZone: "America/Chicago" }) + " CT"
+    : null;
+  return sendPush((players ?? []).map((p) => p.id), {
+    title: "🏈 New pick em is up!",
+    body: `${c.name} is ready. Make your picks${first ? ` before ${first}` : ""}.`,
+    url: `/contests/${contestId}`,
+    tag: `new-${contestId}`,
+  });
+}
+
+/** True once the notifications SQL has been run. */
+export async function pushReady(): Promise<boolean> {
+  const { error } = await createAdminClient().from("push_subscriptions").select("endpoint").limit(1);
+  return !error;
+}

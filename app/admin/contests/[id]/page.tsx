@@ -4,6 +4,8 @@ import { requireAdmin } from "@/lib/auth";
 import { deleteContest, recordPayment, removePayment, setContestStatus, setEntryFee, setLockAtFirstKickoff, setSplit, verifyPayment } from "../../actions";
 import { METHOD_LABEL, money } from "@/lib/payments";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { headers } from "next/headers";
+import NewWeekTools from "@/components/NewWeekTools";
 import type { Contest, Payment, PayMethod, Profile } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -46,6 +48,14 @@ export default async function AdminContestPage({ params }: { params: Promise<{ i
         <button className="btn-ghost">Save fee</button>
         <p className="w-full text-xs text-slate-500">Set to 0 for a free pick em. With a fee, players see your Venmo, Cash App and Apple Cash and can tap &quot;I paid&quot;.</p>
       </form>
+
+      <section className="card space-y-2">
+        <h2 className="font-bold">Let players know</h2>
+        <p className="text-sm text-slate-500">
+          Players with notifications on got an alert when you created this. Text the group too, for anyone without them.
+        </p>
+        <NewWeekTools contestId={cid} name={contest.name} link={await contestLink(cid)} />
+      </section>
 
       <form action={setLockAtFirstKickoff.bind(null, cid, !contest.lock_at_first_kickoff)} className="card flex flex-wrap items-center gap-3">
         <div className="mr-auto">
@@ -152,4 +162,10 @@ export default async function AdminContestPage({ params }: { params: Promise<{ i
       </section>
     </div>
   );
+}
+
+async function contestLink(id: number) {
+  if (process.env.VERCEL_ENV === "production") return `https://${process.env.SITE_HOST || "pickem-three.vercel.app"}/contests/${id}`;
+  const h = await headers();
+  return `${h.get("x-forwarded-proto") ?? "http"}://${h.get("host")}/contests/${id}`;
 }
