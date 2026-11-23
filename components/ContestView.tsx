@@ -279,7 +279,9 @@ function Board({ games, picks, standings, userId, contest, payments, tiebreakers
   const tbGame = games.find((g) => g.id === contest.tiebreaker_game_id);
   const tbShown = tiebreakers.length > 0;
   const started = games.some((g) => g.state !== "pre" || new Date(g.kickoff).getTime() <= Date.now());
-  const anyOpen = games.some((g) => !isLocked(g, contest, started));
+  // Other players' picks on a game stay hidden until that game kicks off, so their "max" can't be known before then.
+  const notStarted = (g: Game) => g.state === "pre" && new Date(g.kickoff).getTime() > Date.now();
+  const anyOpen = games.some(notStarted);
 
   return (
     <div className="space-y-5">
@@ -339,7 +341,7 @@ function Board({ games, picks, standings, userId, contest, payments, tiebreakers
                 </td>
                 {games.map((g) => {
                   const side = pickMap.get(`${r.user_id}:${g.id}`);
-                  const hidden = !side && r.user_id !== userId && isLocked(g, contest, started) === false;
+                  const hidden = !side && r.user_id !== userId && notStarted(g);
                   const abbr = side === "home" ? g.home_abbr : side === "away" ? g.away_abbr : null;
                   const cls = !side ? "text-slate-600"
                     : g.state === "post" && g.winner ? (g.winner === side ? "bg-emerald-950 text-emerald-400" : "bg-red-950 text-red-400 line-through")
