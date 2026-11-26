@@ -38,6 +38,10 @@ export default function ContestView(p: Props) {
 
   const started = games.some((g) => g.state !== "pre" || new Date(g.kickoff).getTime() <= Date.now());
   const [tab, setTab] = useState<"picks" | "board">(started ? "board" : "picks");
+  // The tiebreaker locks at its own game's kickoff, unless everything locks at the first kickoff.
+  const tbGameForLock = games.find((g) => g.id === contest.tiebreaker_game_id);
+  const tbLocked = contest.lock_at_first_kickoff || !tbGameForLock ? started
+    : tbGameForLock.state !== "pre" || new Date(tbGameForLock.kickoff).getTime() <= Date.now();
 
   // My picks, updated optimistically and re-synced whenever the server sends new data.
   const serverMine = useMemo(
@@ -159,7 +163,7 @@ export default function ContestView(p: Props) {
             ))}
           </div>
           {contest.tiebreaker_game_id && (
-            <TiebreakerBox contest={contest} userId={userId} locked={started}
+            <TiebreakerBox contest={contest} userId={userId} locked={tbLocked} atFirstKickoff={!!contest.lock_at_first_kickoff}
               game={games.find((g) => g.id === contest.tiebreaker_game_id)}
               value={p.tiebreakers.find((t) => t.user_id === userId)?.total_points} />
           )}
@@ -240,8 +244,8 @@ function GameCard({ g, locked, pick, onPick, isTiebreaker }: {
   );
 }
 
-function TiebreakerBox({ contest, userId, locked, game, value }: {
-  contest: Contest; userId: string; locked: boolean; game?: Game; value?: number;
+function TiebreakerBox({ contest, userId, locked, atFirstKickoff, game, value }: {
+  contest: Contest; userId: string; locked: boolean; atFirstKickoff: boolean; game?: Game; value?: number;
 }) {
   const [v, setV] = useState(value?.toString() ?? "");
   const [msg, setMsg] = useState<string | null>(null);
@@ -253,7 +257,7 @@ function TiebreakerBox({ contest, userId, locked, game, value }: {
     if (!Number.isInteger(n) || n < 0) return setMsg("Enter a whole number.");
     const { error } = await createClient().from("tiebreakers")
       .upsert({ user_id: userId, contest_id: contest.id, total_points: n }, { onConflict: "user_id,contest_id" });
-    setMsg(error ? "Couldn't save. The tiebreaker locks at the first kickoff." : "Saved ✓");
+    setMsg(error ? `Couldn't save. The tiebreaker locks at ${atFirstKickoff ? "the first kickoff" : "its game's kickoff"}.` : "Saved ✓");
   }
   return (
     <form onSubmit={save} className="card flex flex-wrap items-end gap-3">
@@ -264,7 +268,7 @@ function TiebreakerBox({ contest, userId, locked, game, value }: {
       </div>
       {!locked && <button className="btn-primary">Save</button>}
       {msg && <span className="text-sm text-slate-500">{msg}</span>}
-      {locked && <span className="text-sm text-slate-500">🔒 Locked at first kickoff</span>}
+      {locked && <span className="text-sm text-slate-500">🔒 Locked at {atFirstKickoff ? "first kickoff" : "kickoff"}</span>}
     </form>
   );
 }
